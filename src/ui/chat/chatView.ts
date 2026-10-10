@@ -53,6 +53,7 @@ export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   private quizSubscription: { dispose(): void } | undefined;
   private readonly transcriptSubscription: { dispose(): void };
   private tab: ChatState['tab'] = 'quiz';
+  private tabBeforeSettings: Exclude<ChatState['tab'], 'settings'> = 'quiz';
   private viewing: Transcript | undefined;
   private history: Transcript[] = [];
   private readonly providerSubscription: vscode.Disposable;
@@ -180,9 +181,17 @@ export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   }
 
   showTab(tab: ChatState['tab']): void {
+    if (tab === 'settings' && this.tab !== 'settings') {
+      this.tabBeforeSettings = this.tab;
+    }
     this.tab = tab;
     this.viewing = undefined;
     this.post();
+  }
+
+  /** Leaves model settings for the tab that was open before. */
+  closeSettings(): void {
+    this.showTab(this.tabBeforeSettings);
   }
 
   state(): ChatState {
@@ -260,6 +269,9 @@ export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         if (message.tab === 'quiz' || message.tab === 'history') {
           this.showTab(message.tab);
         }
+        break;
+      case 'closeSettings':
+        this.closeSettings();
         break;
       case 'openTranscript':
         if (typeof message.id === 'string') {

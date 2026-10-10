@@ -124,54 +124,61 @@ export function chatShellHtml(security: ChatPageSecurity): string {
 <style>${STYLES}${SETTINGS_STYLES}</style>
 </head>
 <body data-avatar="${escapeHtml(security.avatarUri)}">
-<nav class="tabs" role="tablist">
-  <button role="tab" data-action="tab" data-tab="quiz" id="tab-quiz">💬 Quiz</button>
-  <button role="tab" data-action="tab" data-tab="history" id="tab-history">🕘 History</button>
-  <button class="chip" data-action="tab" data-tab="settings" id="model-chip" title="Model settings"></button>
+<nav id="tabs" class="tabs" role="tablist">
+  <button role="tab" data-action="tab" data-tab="quiz" id="tab-quiz">Quiz</button>
+  <button role="tab" data-action="tab" data-tab="history" id="tab-history">History <span id="history-count" class="count" hidden></span></button>
 </nav>
 <section id="settings" class="settings" hidden>
-  <h2>Model settings</h2>
-  <p class="muted">Using <strong id="active-label"></strong></p>
-  <div id="provider-list" class="providers" role="radiogroup" aria-label="Provider"></div>
+  <header class="settings-head">
+    <button class="link" data-action="closeSettings">← Back</button>
+    <span class="settings-title">Model settings</span>
+  </header>
+  <div class="field">
+    <label for="provider">Provider</label>
+    <select id="provider"></select>
+    <p class="hint" id="provider-hint"></p>
+  </div>
   <div id="field-url" class="field" hidden>
     <label for="base-url">Server URL</label>
     <select id="preset" hidden></select>
-    <input id="base-url" type="url" spellcheck="false" placeholder="https://…">
+    <input id="base-url" type="url" spellcheck="false" placeholder="https://example.com/v1">
   </div>
   <div id="field-key" class="field" hidden>
-    <label for="api-key">API key</label>
-    <div id="key-saved" class="key-saved" hidden>
-      <span>🔒 Saved in your OS keychain</span>
-      <button class="link" data-action="replaceKey">Replace</button>
-      <button class="link danger" data-action="removeKey">Remove</button>
+    <div class="label-row">
+      <label for="api-key">API key <span id="key-optional" class="hint inline" hidden>(optional)</span></label>
+      <button class="link" data-action="openKeyUrl" id="key-link">Get API key</button>
     </div>
-    <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your API key">
-    <p class="muted small"><span id="key-optional" hidden>Optional for local servers. </span>Stored only in VS Code's secret storage, never in settings. <button class="link" data-action="openKeyUrl" id="key-link">Get a key</button></p>
+    <div id="key-saved" class="key-saved" hidden>
+      <span>Saved in keychain</span>
+      <span aria-hidden="true">·</span>
+      <button class="link" data-action="replaceKey">Replace</button>
+      <span aria-hidden="true">·</span>
+      <button class="link" data-action="removeKey">Remove</button>
+    </div>
+    <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste API key">
   </div>
   <div class="field">
     <label for="model">Model</label>
     <div class="row">
-      <input id="model" list="model-options" spellcheck="false" placeholder="Default">
-      <button data-action="loadModels" title="Load the models this provider offers">↻</button>
+      <input id="model" list="model-options" spellcheck="false">
+      <button class="icon" data-action="loadModels" title="Refresh model list" aria-label="Refresh model list">↻</button>
     </div>
     <datalist id="model-options"></datalist>
-    <p class="muted small" id="model-status"></p>
+    <p class="hint" id="model-status" hidden></p>
   </div>
   <div class="actions">
+    <button class="primary" data-action="saveSettings">Save</button>
     <button data-action="test">Test connection</button>
-    <button class="primary" data-action="saveSettings">Save &amp; use</button>
   </div>
   <p id="settings-status" class="status" role="status"></p>
-  <p class="muted small">Your code is sent only to the provider you choose here. Patch Tutor has no server and no telemetry.</p>
 </section>
 <div id="bar" class="bar" hidden></div>
 <main id="messages" aria-live="polite"></main>
 <section id="list" class="list" hidden></section>
 <section id="empty" class="empty" hidden>
-  <div class="empty-icon">💬</div>
-  <h2>No quiz here yet</h2>
-  <p>Click <strong>Quiz me</strong> above a change, then <strong>Move to chat</strong> to answer here with more room.</p>
-  <p><button class="link" data-action="tab" data-tab="history">See past quizzes</button></p>
+  <p class="empty-title">No quiz in progress</p>
+  <p class="hint">Click <strong>Quiz me</strong> above a change, then <strong>Move to chat</strong>.</p>
+  <p><button class="link" data-action="tab" data-tab="history">View past quizzes</button></p>
 </section>
 <footer id="composer" hidden>
   <textarea id="answer" rows="3" placeholder="Type your answer. Short is fine. Enter to send, Shift+Enter for a new line."></textarea>
@@ -210,11 +217,13 @@ function escapeHtml(text: string): string {
 }
 
 const STYLES = `
+[hidden] { display: none !important; }
 body { margin: 0; padding: 0; color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); display: flex; flex-direction: column; height: 100vh; }
 .tabs { display: flex; gap: 4px; padding: 6px 10px 0; border-bottom: 1px solid var(--vscode-panel-border, transparent); }
-.tabs button { background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 4px 8px 6px; color: var(--vscode-descriptionForeground); }
+.tabs button { background: none; border: none; border-bottom: 1px solid transparent; border-radius: 0; padding: 6px 4px; margin-right: 10px; color: var(--vscode-descriptionForeground); }
 .tabs button:hover { background: none; color: var(--vscode-foreground); }
-.tabs button.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder); }
+.tabs button.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-panelTitle-activeBorder, var(--vscode-focusBorder)); }
+.count { display: inline-block; min-width: 14px; padding: 0 5px; margin-left: 4px; border-radius: 8px; font-size: 10px; line-height: 16px; text-align: center; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
 .bar { padding: 8px 12px; font-size: 12px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--vscode-panel-border, transparent); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 main { flex: 1; overflow-y: auto; padding: 4px 12px 8px; }
 main[hidden] { display: none; }
@@ -253,34 +262,30 @@ button:disabled { opacity: .5; cursor: default; }
 button.link { background: none; padding: 0; color: var(--vscode-textLink-foreground); }
 button.link:hover { text-decoration: underline; background: none; }
 .empty { text-align: center; padding: 24px 16px; flex: 1; }
-.empty-icon { font-size: 30px; }
-.empty h2 { font-size: 14px; margin: 6px 0; }
-.empty p { color: var(--vscode-descriptionForeground); line-height: 1.4; }
+.empty-title { font-weight: 600; margin: 0 0 4px; }
+.empty p { margin: 4px 0; line-height: 1.4; }
 `;
 
 const SETTINGS_STYLES = `
-.chip { margin-left: auto; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; padding: 2px 8px !important; border-radius: 10px !important; border: 1px solid var(--vscode-panel-border, rgba(128,128,128,.35)) !important; color: var(--vscode-descriptionForeground) !important; align-self: center; }
-.chip:hover, .chip.active { color: var(--vscode-foreground) !important; }
-.settings { flex: 1; overflow-y: auto; padding: 4px 12px 12px; }
-.settings h2 { font-size: 14px; margin: 8px 0 2px; }
-.providers { display: grid; gap: 6px; margin: 10px 0; }
-.provider { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--vscode-panel-border, rgba(128,128,128,.35)); background: none; color: inherit; }
-.provider:hover { background: var(--vscode-list-hoverBackground); }
-.provider.selected { border-color: var(--vscode-focusBorder); background: var(--vscode-list-activeSelectionBackground, transparent); color: var(--vscode-list-activeSelectionForeground, inherit); }
-.provider .title { font-weight: 600; }
-.provider .desc { display: block; font-size: 12px; opacity: .8; margin-top: 2px; }
-.field { margin: 10px 0; }
-.field label { display: block; font-weight: 600; margin-bottom: 4px; }
-.field input, .field select { width: 100%; box-sizing: border-box; font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; padding: 4px 6px; }
-.field select { margin-bottom: 6px; }
-.row { display: flex; gap: 6px; }
+.settings { flex: 1; overflow-y: auto; padding: 0 12px 16px; }
+.settings-head { display: flex; align-items: center; gap: 10px; padding: 10px 0 6px; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.25)); margin-bottom: 4px; }
+.settings-title { font-weight: 600; }
+.field { margin: 14px 0; }
+.field label { display: block; font-weight: 600; margin-bottom: 5px; }
+.label-row { display: flex; justify-content: space-between; align-items: baseline; }
+.field input, .field select { width: 100%; box-sizing: border-box; font: inherit; padding: 4px 6px; border-radius: 2px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent)); }
+.field select { color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border-color: var(--vscode-dropdown-border, transparent); }
+.field input:focus, .field select:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+#preset { margin-bottom: 6px; }
+.row { display: flex; gap: 4px; }
 .row input { flex: 1; }
-.small { font-size: 11.5px; }
-.key-saved { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; }
-.status { min-height: 1.2em; }
+button.icon { padding: 2px 8px; }
+.hint { margin: 5px 0 0; font-size: 12px; color: var(--vscode-descriptionForeground); line-height: 1.4; }
+.hint.inline { display: inline; margin: 0; font-weight: normal; }
+.key-saved { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--vscode-descriptionForeground); }
+.status { margin: 10px 0 0; font-size: 12px; min-height: 1.2em; }
 .status.ok { color: var(--vscode-testing-iconPassed, #1FAA6E); }
 .status.error { color: var(--vscode-errorForeground); }
-.danger { color: var(--vscode-errorForeground) !important; }
 `;
 
 // Settings form: the page owns the inputs while open and re-reads saved
@@ -295,14 +300,22 @@ function providerById(id) { return state.settings.providers.find((p) => p.id ===
 
 function renderSettings(force) {
   const s = state.settings;
-  $('active-label').textContent = state.modelLabel;
   if (!force && form && settingsVersion === s.version) return;
   settingsVersion = s.version;
   form = { provider: s.active.provider, model: s.active.model, baseUrl: s.active.baseUrl };
   replacingKey = false;
   $('api-key').value = '';
   $('model-options').innerHTML = '';
-  $('model-status').textContent = '';
+  setModelStatus('');
+  setStatus('');
+  const select = $('provider');
+  select.innerHTML = '';
+  for (const p of s.providers) {
+    const option = document.createElement('option');
+    option.value = p.id;
+    option.textContent = p.label;
+    select.appendChild(option);
+  }
   drawForm();
   autoLoadModels();
 }
@@ -310,24 +323,8 @@ function renderSettings(force) {
 function drawForm() {
   const s = state.settings;
   const info = providerById(form.provider);
-  const list = $('provider-list');
-  list.innerHTML = '';
-  for (const p of s.providers) {
-    const card = document.createElement('button');
-    card.className = 'provider' + (p.id === form.provider ? ' selected' : '');
-    card.setAttribute('role', 'radio');
-    card.setAttribute('aria-checked', String(p.id === form.provider));
-    card.dataset.action = 'pickProvider';
-    card.dataset.id = p.id;
-    const title = document.createElement('span');
-    title.className = 'title';
-    title.textContent = p.label;
-    const desc = document.createElement('span');
-    desc.className = 'desc';
-    desc.textContent = p.detail;
-    card.append(title, desc);
-    list.appendChild(card);
-  }
+  $('provider').value = form.provider;
+  $('provider-hint').textContent = info.detail;
 
   show('field-url', info.usesBaseUrl);
   const preset = $('preset');
@@ -337,24 +334,24 @@ function drawForm() {
     for (const p of s.presets.concat([{ label: 'Custom URL', url: '' }])) {
       const option = document.createElement('option');
       option.value = p.url;
-      option.textContent = p.url ? p.label + ' (' + p.url + ')' : p.label;
+      option.textContent = p.label;
       preset.appendChild(option);
     }
-    const known = s.presets.some((p) => p.url === (form.baseUrl || info.defaultBaseUrl));
-    preset.value = known ? (form.baseUrl || info.defaultBaseUrl) : '';
+    const url = form.baseUrl || info.defaultBaseUrl;
+    preset.value = s.presets.some((p) => p.url === url) ? url : '';
   }
   $('base-url').value = form.baseUrl || info.defaultBaseUrl;
 
   show('field-key', info.usesKey);
   const saved = info.keySaved && !replacingKey;
   show('key-saved', saved);
-  $('api-key').hidden = saved;
-  const local = form.provider === 'openaiCompatible' && /^http:\\/\\/(localhost|127\\.0\\.0\\.1)/.test($('base-url').value);
+  show('api-key', !saved);
+  const local = form.provider === 'openaiCompatible' && /^http:\/\/(localhost|127\.0\.0\.1)/.test($('base-url').value);
   show('key-optional', local);
-  $('key-link').hidden = !info.keyUrl || local;
+  show('key-link', !!info.keyUrl && !local && !saved);
 
   $('model').value = form.model;
-  $('model').placeholder = info.defaultModel ? 'Default: ' + info.defaultModel : 'Pick or type a model';
+  $('model').placeholder = info.defaultModel ? 'Default (' + info.defaultModel + ')' : 'Choose a model';
 }
 
 function readForm() {
@@ -371,18 +368,18 @@ function setStatus(text, kind) {
   el.className = 'status' + (kind ? ' ' + kind : '');
 }
 
+function setModelStatus(text) {
+  $('model-status').textContent = text;
+  show('model-status', !!text);
+}
+
 function autoLoadModels() {
   const info = providerById(form.provider);
-  // Only fetch when it can work without more input from the user.
-  if (!info.usesKey || info.keySaved || form.provider === 'openaiCompatible') {
-    requestModels();
-  } else {
-    $('model-status').textContent = 'Add your API key to load the model list.';
-  }
+  if (!info.usesKey || info.keySaved || form.provider === 'openaiCompatible') requestModels();
 }
 
 function requestModels() {
-  $('model-status').textContent = 'Loading models…';
+  setModelStatus('Loading models…');
   vscode.postMessage({ action: 'loadModels', form: readForm() });
 }
 
@@ -397,27 +394,27 @@ function onSettingsMessage(data) {
       if (m.label && m.label !== m.id) option.label = m.label;
       options.appendChild(option);
     }
-    $('model-status').textContent = data.error
-      ? data.error
-      : data.models.length + ' model' + (data.models.length === 1 ? '' : 's') + ' available. Pick one or type a name.';
+    setModelStatus(data.error || (data.models.length ? '' : 'No models found. Type a model name.'));
   } else if (data.type === 'testResult' || data.type === 'saved') {
     setStatus(data.text, data.ok ? 'ok' : 'error');
   }
 }
 
+function switchProvider(id) {
+  readForm();
+  form = { provider: id, model: '', baseUrl: '' };
+  replacingKey = false;
+  $('api-key').value = '';
+  $('model-options').innerHTML = '';
+  setModelStatus('');
+  setStatus('');
+  drawForm();
+  autoLoadModels();
+}
+
 function onSettingsClick(target) {
   const action = target.dataset.action;
-  if (action === 'pickProvider') {
-    readForm();
-    const info = providerById(target.dataset.id);
-    form = { provider: info.id, model: form.provider === info.id ? form.model : '', baseUrl: form.provider === info.id ? form.baseUrl : '' };
-    replacingKey = false;
-    $('api-key').value = '';
-    $('model-options').innerHTML = '';
-    setStatus('');
-    drawForm();
-    autoLoadModels();
-  } else if (action === 'replaceKey') {
+  if (action === 'replaceKey') {
     replacingKey = true;
     readForm();
     drawForm();
@@ -441,12 +438,12 @@ function onSettingsClick(target) {
   return true;
 }
 
+$('provider').addEventListener('change', () => switchProvider($('provider').value));
 $('preset').addEventListener('change', () => {
-  if ($('preset').value) $('base-url').value = $('preset').value;
-  else { $('base-url').value = ''; $('base-url').focus(); }
+  $('base-url').value = $('preset').value;
   readForm();
   drawForm();
-  requestModels();
+  if ($('preset').value) requestModels(); else $('base-url').focus();
 });
 $('base-url').addEventListener('change', () => { readForm(); drawForm(); requestModels(); });
 $('api-key').addEventListener('change', () => { if ($('api-key').value.trim()) requestModels(); });
@@ -489,9 +486,9 @@ function render(next) {
   state = next;
   $('tab-quiz').classList.toggle('active', state.tab === 'quiz');
   $('tab-history').classList.toggle('active', state.tab === 'history');
-  $('tab-history').textContent = '🕘 History' + (state.history.length ? ' (' + state.history.length + ')' : '');
-  $('model-chip').textContent = '⚙ ' + state.modelLabel;
-  $('model-chip').classList.toggle('active', state.tab === 'settings');
+  $('history-count').textContent = String(state.history.length);
+  show('history-count', state.history.length > 0);
+  show('tabs', state.tab !== 'settings');
   for (const id of ['bar', 'messages', 'list', 'empty', 'composer', 'finished', 'settings']) show(id, false);
 
   if (state.tab === 'settings') {
