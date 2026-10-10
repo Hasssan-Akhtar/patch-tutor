@@ -51,7 +51,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
   });
 
   const hunks = new HunkService();
-  const comments = new InlineComments(explainService);
+  const comments = new InlineComments(context.extensionUri, explainService);
   context.subscriptions.push(
     output,
     statusBar,

@@ -146,7 +146,8 @@ suite('inline UI', () => {
     assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
     const body = thread.comments[0]?.body;
     assert.ok(body instanceof vscode.MarkdownString);
-    assert.match(body.value, /\*\*Counts the items\.\*\*/);
+    assert.match(body.value, /\*\*TL;DR:\*\* Counts the items\./);
+    assert.strictEqual(thread.label, '💡 Counts the items.');
     assert.ok(requests.some((r) => r.includes(`+${ADDED_LINE}`)));
 
     await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);

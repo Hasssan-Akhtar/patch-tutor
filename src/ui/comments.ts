@@ -3,10 +3,8 @@ import type { Hunk } from '../git/hunk';
 import { ProviderError } from '../llm/provider';
 import type { Depth } from '../llm/schemas';
 import type { ExplainService } from '../services/explainService';
-import { explanationMarkdown, rawExplanationMarkdown } from './explanationMarkdown';
+import { explanationMarkdown, rawExplanationMarkdown, threadTitle } from './explanationMarkdown';
 import { hunkRange } from './hunkRange';
-
-const AUTHOR: vscode.CommentAuthorInformation = { name: 'Patch Tutor' };
 
 const DEEPER: Record<Depth, Depth> = { simple: 'standard', standard: 'deep', deep: 'deep' };
 const SIMPLER: Record<Depth, Depth> = { simple: 'simple', standard: 'simple', deep: 'standard' };
@@ -27,7 +25,17 @@ export class InlineComments implements vscode.Disposable {
   );
   private readonly entries = new Map<string, ThreadEntry>();
 
-  constructor(private readonly explainService: ExplainService) {}
+  private readonly author: vscode.CommentAuthorInformation;
+
+  constructor(
+    extensionUri: vscode.Uri,
+    private readonly explainService: ExplainService,
+  ) {
+    this.author = {
+      name: 'Patch Tutor',
+      iconPath: vscode.Uri.joinPath(extensionUri, 'media', 'avatar.svg'),
+    };
+  }
 
   async explain(
     uri: vscode.Uri,
@@ -44,7 +52,7 @@ export class InlineComments implements vscode.Disposable {
         [],
       );
       thread.canReply = false;
-      thread.label = 'Patch Tutor';
+      thread.label = '💡 Patch Tutor';
       entry = { thread, ...located, depth };
       this.entries.set(key, entry);
     }
@@ -101,9 +109,12 @@ export class InlineComments implements vscode.Disposable {
     const { thread } = entry;
     thread.contextValue = `patchTutorThread ${depth}`;
     thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
-    thread.comments = [comment(markdown('$(loading~spin) Explaining this change…'))];
+    thread.comments = [
+      this.comment(markdown('$(loading~spin) Reading your change and the code around it…')),
+    ];
 
     let body: vscode.MarkdownString;
+    let title = '💡 Patch Tutor';
     try {
       const result = await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Window, title: 'Patch Tutor: explaining…' },
@@ -113,10 +124,12 @@ export class InlineComments implements vscode.Disposable {
             repoRoot: entry.repoRoot,
           }),
       );
-      body =
-        result.kind === 'explanation'
-          ? markdown(explanationMarkdown(result.explanation, result.fromCache))
-          : markdown(rawExplanationMarkdown(result.text));
+      if (result.kind === 'explanation') {
+        body = markdown(explanationMarkdown(result.explanation, result.fromCache));
+        title = threadTitle(result.explanation);
+      } else {
+        body = markdown(rawExplanationMarkdown(result.text));
+      }
     } catch (error) {
       if (controller.signal.aborted) {
         return; // Dismissed or superseded by a newer request.
@@ -124,18 +137,22 @@ export class InlineComments implements vscode.Disposable {
       body = errorMarkdown(error);
     }
     if (entry.controller === controller) {
-      thread.comments = [comment(body)];
+      thread.label = title;
+      thread.comments = [this.comment(body)];
     }
+  }
+
+  private comment(body: vscode.MarkdownString): vscode.Comment {
+    return { body, mode: vscode.CommentMode.Preview, author: this.author };
   }
 }
 
 function markdown(text: string): vscode.MarkdownString {
-  // Theme icons only; model output is never trusted to run commands.
-  return new vscode.MarkdownString(text, true);
-}
-
-function comment(body: vscode.MarkdownString): vscode.Comment {
-  return { body, mode: vscode.CommentMode.Preview, author: AUTHOR };
+  // Theme icons and inline color spans. Model text is escaped by explanationMarkdown,
+  // and the string is never trusted to run commands.
+  const md = new vscode.MarkdownString(text, true);
+  md.supportHtml = true;
+  return md;
 }
 
 function errorMarkdown(error: unknown): vscode.MarkdownString {
@@ -144,7 +161,7 @@ function errorMarkdown(error: unknown): vscode.MarkdownString {
   }
   const message = error instanceof Error ? error.message : String(error);
   const md = new vscode.MarkdownString(
-    `$(warning) ${message}\n\n[Test connection](command:patchTutor.testConnection) · [Choose provider](command:patchTutor.chooseProvider)`,
+    `😕 **Couldn't get an explanation.** ${message}\n\n[Test connection](command:patchTutor.testConnection) · [Choose provider](command:patchTutor.chooseProvider)`,
     true,
   );
   // Only our own two commands may run from this message.
