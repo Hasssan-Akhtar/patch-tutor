@@ -1,41 +1,43 @@
-import type { ActivityEntry } from './conceptStore';
-import { creditFor } from './concepts';
+import type { Attempt } from './concepts';
 import { localDay } from '../services/usage';
 
 export interface ProgressStats {
-  /** Questions answered or revealed; skips are not counted. */
+  /** Lifetime scored answers (correct, partly, wrong or peeked); skips are not counted. */
   answered: number;
-  /** Average credit over counted answers in the last 30 days, 0 to 1; undefined without any. */
+  /** Average credit over answers in the last 30 days, 0 to 1; undefined without any. */
   accuracy: number | undefined;
   /** Consecutive days with at least one answer, ending today or yesterday. */
   streakDays: number;
-  /** Counted answers since local midnight. */
+  /** Scored answers since local midnight. */
   answeredToday: number;
+}
+
+export interface ProgressInputs {
+  answeredTotal: number;
+  /** Scored attempts across all concepts, the same data the concept bars use. */
+  attempts: readonly Attempt[];
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ACCURACY_WINDOW_DAYS = 30;
 
-export function progressStats(activity: readonly ActivityEntry[], now: number): ProgressStats {
-  const counted = activity.flatMap((a) => {
-    const credit = creditFor(a.outcome);
-    return credit === undefined ? [] : [{ at: a.at, credit }];
-  });
-  const recent = counted.filter((a) => now - a.at <= ACCURACY_WINDOW_DAYS * DAY_MS);
+export function progressStats(inputs: ProgressInputs, now: number): ProgressStats {
+  const { attempts } = inputs;
+  const recent = attempts.filter((a) => now - a.at <= ACCURACY_WINDOW_DAYS * DAY_MS);
   const today = localDay(new Date(now));
 
   return {
-    answered: counted.length,
+    answered: inputs.answeredTotal,
     accuracy:
       recent.length > 0 ? recent.reduce((n, a) => n + a.credit, 0) / recent.length : undefined,
-    streakDays: streak(new Set(counted.map((a) => localDay(new Date(a.at)))), now),
-    answeredToday: counted.filter((a) => localDay(new Date(a.at)) === today).length,
+    streakDays: streak(new Set(attempts.map((a) => localDay(new Date(a.at)))), now),
+    answeredToday: attempts.filter((a) => localDay(new Date(a.at)) === today).length,
   };
 }
 
 function streak(days: Set<string>, now: number): number {
-  // A streak still counts if today has no answers yet but yesterday did.
   // Step by calendar day, not 24h, so daylight-saving changes cannot skip a day.
+  // A streak still counts if today has no answers yet but yesterday did.
   const cursor = new Date(now);
   if (!days.has(localDay(cursor))) {
     cursor.setDate(cursor.getDate() - 1);

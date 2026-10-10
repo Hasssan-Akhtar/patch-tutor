@@ -39,8 +39,12 @@ export class DashboardView implements vscode.WebviewViewProvider, vscode.Disposa
 
   async model(): Promise<DashboardModel> {
     const now = Date.now();
-    const [concepts, activity] = await Promise.all([this.store.summaries(), this.store.activity()]);
-    return { stats: progressStats(activity, now), concepts, activity, now };
+    const [concepts, activity, inputs] = await Promise.all([
+      this.store.summaries(),
+      this.store.activity(),
+      this.store.progressInputs(),
+    ]);
+    return { stats: progressStats(inputs, now), concepts, activity, now };
   }
 
   async refresh(): Promise<void> {

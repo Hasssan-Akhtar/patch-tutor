@@ -164,6 +164,7 @@ describe('ConceptStore', () => {
       version: 1,
       concepts: {},
       activity: [],
+      answeredTotal: 0,
     });
   });
 
@@ -221,5 +222,52 @@ describe('ConceptStore activity', () => {
 
     expect(await s.activity()).toEqual([]);
     expect((await s.summaries()).map((c) => c.name)).toEqual(['scope']);
+  });
+});
+
+describe('ConceptStore progress inputs', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'patch-tutor-progress-'));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('keeps the tiles consistent with the concept bars, including older files', async () => {
+    // A file from before the activity log and counter: 2 string-formatting attempts.
+    const file = join(dir, 'c.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        concepts: {
+          'string-formatting': {
+            attempts: [
+              { at: 1, credit: 1 },
+              { at: 2, credit: 0 },
+            ],
+            hunks: [],
+          },
+        },
+      }),
+    );
+    const s = new ConceptStore(file, () => 3);
+    const hunk = { hunkId: 'h', filePath: 'a.js', line: 1, diff: '+x' };
+
+    await s.record({ concept: 'async-await', outcome: 'correct', question: 'Q1', hunk });
+    await s.record({ concept: 'async-await', outcome: 'partly', question: 'Q2', hunk });
+    await s.record({ concept: 'async-await', outcome: 'skipped', question: 'Q3', hunk });
+
+    const inputs = await s.progressInputs();
+    const triesInBars = (await s.summaries()).reduce((n, c) => n + c.attempts, 0);
+    expect(inputs.answeredTotal).toBe(4);
+    expect(inputs.answeredTotal).toBe(triesInBars);
+    expect(inputs.attempts).toHaveLength(4);
+
+    await s.clear();
+    expect((await s.progressInputs()).answeredTotal).toBe(0);
   });
 });

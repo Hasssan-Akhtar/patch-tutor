@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { z } from 'zod';
-import { creditFor, masteryScore, normalizeConcept } from './concepts';
+import { creditFor, masteryScore, normalizeConcept, type Attempt } from './concepts';
 import type { Outcome } from './quizSession';
 
 const MAX_ATTEMPTS_PER_CONCEPT = 50;
@@ -40,6 +40,8 @@ const FileSchema = z.object({
   concepts: z.record(z.string(), ConceptSchema),
   /** Newest first. Added after the first release of this file, so it may be missing. */
   activity: z.array(ActivitySchema).default([]),
+  /** Lifetime count of scored answers (attempts are capped per concept). Derived when missing. */
+  answeredTotal: z.number().optional(),
 });
 type StoreFile = z.infer<typeof FileSchema>;
 
@@ -94,6 +96,7 @@ export class ConceptStore {
       concept.attempts = [...concept.attempts, { at: now, credit }].slice(
         -MAX_ATTEMPTS_PER_CONCEPT,
       );
+      data.answeredTotal = answeredTotal(data) + 1;
     }
     const ref: HunkRef = { ...answer.hunk, diff: trimLines(answer.hunk.diff), lastSeen: now };
     concept.hunks = [ref, ...concept.hunks.filter((h) => h.hunkId !== ref.hunkId)].slice(
@@ -143,6 +146,18 @@ export class ConceptStore {
     return [...(await this.load()).activity];
   }
 
+  /**
+   * What the progress tiles are computed from: the same scored attempts the
+   * concept bars use, plus the lifetime count, so the numbers always agree.
+   */
+  async progressInputs(): Promise<{ answeredTotal: number; attempts: Attempt[] }> {
+    const data = await this.load();
+    return {
+      answeredTotal: answeredTotal(data),
+      attempts: Object.values(data.concepts).flatMap((c) => c.attempts),
+    };
+  }
+
   /** The saved change a concept or activity entry points at. */
   async findHunk(hunkId: string): Promise<HunkRef | undefined> {
     const data = await this.load();
@@ -156,7 +171,7 @@ export class ConceptStore {
   }
 
   async clear(): Promise<void> {
-    await this.save({ version: 1, concepts: {}, activity: [] });
+    await this.save({ version: 1, concepts: {}, activity: [], answeredTotal: 0 });
   }
 
   private async load(): Promise<StoreFile> {
@@ -182,6 +197,13 @@ export class ConceptStore {
     await this.writing;
     this.listeners.forEach((listener) => listener());
   }
+}
+
+/** Files written before the counter existed get it from the attempts they hold. */
+function answeredTotal(data: StoreFile): number {
+  return (
+    data.answeredTotal ?? Object.values(data.concepts).reduce((n, c) => n + c.attempts.length, 0)
+  );
 }
 
 function trimLines(text: string): string {

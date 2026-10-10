@@ -224,7 +224,8 @@ suite('inline UI', () => {
     }, 'concept results');
     assert.strictEqual(others.length, 0);
     assert.strictEqual(concept?.name, 'array-methods');
-    assert.strictEqual(concept?.score, 0.5);
+    // Attempts are milliseconds apart, so time decay moves the score a hair below 0.5.
+    assert.ok(Math.abs((concept?.score ?? 0) - 0.5) < 0.001, `score ${concept?.score}`);
     assert.strictEqual(concept?.hunks[0]?.hunkId, hunk.id);
 
     // Answers are saved asynchronously; wait until the skip is logged too.

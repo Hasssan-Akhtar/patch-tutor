@@ -19,31 +19,33 @@ const entry = (over: Partial<ActivityEntry>): ActivityEntry => ({
 });
 
 describe('progressStats', () => {
-  it('counts answers, accuracy and today, ignoring skips', () => {
+  const attempt = (credit: number, daysAgo = 0) => ({ at: NOW - daysAgo * DAY, credit });
+
+  it('reports the lifetime count and accuracy and today from scored attempts', () => {
     const stats = progressStats(
-      [
-        entry({ outcome: 'correct' }),
-        entry({ outcome: 'partly' }),
-        entry({ outcome: 'revealed' }),
-        entry({ outcome: 'skipped' }),
-        entry({ outcome: 'wrong', at: NOW - 40 * DAY }),
-      ],
+      {
+        answeredTotal: 57,
+        attempts: [attempt(1), attempt(0.5), attempt(0), attempt(0, 40)],
+      },
       NOW,
     );
 
-    expect(stats.answered).toBe(4);
+    expect(stats.answered).toBe(57);
     expect(stats.answeredToday).toBe(3);
     // Last 30 days only: (1 + 0.5 + 0) / 3.
     expect(stats.accuracy).toBeCloseTo(0.5);
   });
 
   it('counts a streak ending today or yesterday', () => {
-    const days = (...ago: number[]) => ago.map((d) => entry({ at: NOW - d * DAY }));
+    const days = (...ago: number[]) => ({
+      answeredTotal: ago.length,
+      attempts: ago.map((d) => attempt(1, d)),
+    });
 
     expect(progressStats(days(0, 1, 2, 4), NOW).streakDays).toBe(3);
     expect(progressStats(days(1, 2), NOW).streakDays).toBe(2);
     expect(progressStats(days(2, 3), NOW).streakDays).toBe(0);
-    expect(progressStats([], NOW)).toEqual({
+    expect(progressStats({ answeredTotal: 0, attempts: [] }, NOW)).toEqual({
       answered: 0,
       accuracy: undefined,
       streakDays: 0,
@@ -73,7 +75,7 @@ describe('dashboardHtml', () => {
     hunks: [{ hunkId: 'h1', filePath: 'src/cart.js', line: 4, diff: '+x', lastSeen: NOW }],
   });
   const model = (over: Partial<DashboardModel> = {}): DashboardModel => ({
-    stats: progressStats([entry({})], NOW),
+    stats: progressStats({ answeredTotal: 1, attempts: [{ at: NOW, credit: 1 }] }, NOW),
     concepts: [concept('async-await', 0.25), concept('closures', 0.9)],
     activity: [entry({})],
     now: NOW,
@@ -129,5 +131,21 @@ describe('dashboardHtml', () => {
     );
     expect(html.match(/<script nonce="abc123">/g)).toHaveLength(1);
     expect(html).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe('withInlineCode in activity', () => {
+  it('shows backticked code as code, still escaped', () => {
+    const html = dashboardHtml(
+      {
+        stats: progressStats({ answeredTotal: 1, attempts: [{ at: NOW, credit: 1 }] }, NOW),
+        concepts: [],
+        activity: [entry({ question: 'How does `await <T>` work?' })],
+        now: NOW,
+      },
+      { nonce: 'n', cspSource: 's' },
+    );
+
+    expect(html).toContain('How does <code>await &lt;T&gt;</code> work?');
   });
 });

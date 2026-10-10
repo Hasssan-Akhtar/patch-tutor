@@ -147,7 +147,7 @@ function activitySection(activity: ActivityEntry[], now: number): string {
       const outcome = OUTCOME[a.outcome];
       return `<li><button class="activity" data-action="openHunk" data-hunk="${escape(a.hunkId)}" title="${outcome.label}: show the change">
   <span class="icon">${outcome.icon}</span>
-  <span class="text"><span class="question">${escape(a.question)}</span><span class="muted">${escape(a.concept)} · ${escape(basename(a.filePath))} · ${timeAgo(a.at, now)}</span></span>
+  <span class="text"><span class="question">${withInlineCode(a.question)}</span><span class="muted">${escape(a.concept)} · ${escape(basename(a.filePath))} · ${timeAgo(a.at, now)}</span></span>
 </button></li>`;
     })
     .join('\n');
@@ -162,6 +162,11 @@ function footer(): string {
   <p class="muted">Scores weight recent answers most: an answer counts half as much after 14 days. Stored only on this machine.</p>
   <button class="link danger" data-action="reset">Reset progress</button>
 </footer>`;
+}
+
+/** Escapes text, then shows Markdown `code` spans as code (their contents are already escaped). */
+function withInlineCode(text: string): string {
+  return escape(text).replace(/`([^`]+)`/g, '<code>$1</code>');
 }
 
 function basename(path: string): string {
@@ -210,6 +215,7 @@ button { font: inherit; color: inherit; background: none; border: none; padding:
 .activity .icon { flex: none; }
 .activity .text { display: flex; flex-direction: column; min-width: 0; }
 .activity .question { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+code { font-family: var(--vscode-editor-font-family); font-size: .92em; background: var(--vscode-textCodeBlock-background); border-radius: 3px; padding: 0 3px; }
 footer { margin-top: 20px; }
 .empty { text-align: center; padding: 24px 8px; }
 .empty-icon { font-size: 32px; }
