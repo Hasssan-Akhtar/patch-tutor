@@ -9,6 +9,8 @@ File status tells you what happened to the whole file:
 - deleted: the entire file was removed, not just the lines shown.
 - renamed: the file moved from the old path to the new one; the diff shows only the edits made alongside the move.
 
+A diff line `\ No newline at end of file` means the line just above it has no trailing newline. When a line is removed and added back with identical text, the only change is that trailing newline.
+
 Rules:
 
 - Explain this hunk in this codebase. Use only the code you were given. Never invent functions, files or behavior that are not shown.
