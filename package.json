@@ -171,7 +171,7 @@
             "A model running locally in Ollama. Nothing leaves your machine."
           ],
           "default": "vscodeLm",
-          "markdownDescription": "Which language model provider explains and quizzes your changes. Easiest to change from the **\u2699 model settings** in the Patch Tutor chat. API keys are stored in VS Code's secret storage, never here."
+          "markdownDescription": "Which language model provider explains and quizzes your changes. Easiest to change from the **⚙ model settings** in the Patch Tutor chat. API keys are stored in VS Code's secret storage, never here."
         },
         "patchTutor.model": {
           "type": "string",
@@ -400,6 +400,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
+    "happy-dom": "^20.14.6",
     "mocha": "^12.0.3",
     "prettier": "^3.9.10",
     "typescript": "~6.0.3",

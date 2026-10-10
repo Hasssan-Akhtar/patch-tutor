@@ -158,12 +158,12 @@ export function chatShellHtml(security: ChatPageSecurity): string {
     <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste API key">
   </div>
   <div class="field">
-    <label for="model">Model</label>
+    <label for="model-select">Model</label>
     <div class="row">
-      <input id="model" list="model-options" spellcheck="false">
+      <select id="model-select" hidden></select>
+      <input id="model" spellcheck="false" aria-label="Model name">
       <button class="icon" data-action="loadModels" title="Refresh model list" aria-label="Refresh model list">↻</button>
     </div>
-    <datalist id="model-options"></datalist>
     <p class="hint" id="model-status" hidden></p>
   </div>
   <div class="actions">
@@ -277,8 +277,10 @@ const SETTINGS_STYLES = `
 .field select { color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border-color: var(--vscode-dropdown-border, transparent); }
 .field input:focus, .field select:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 #preset { margin-bottom: 6px; }
-.row { display: flex; gap: 4px; }
-.row input { flex: 1; }
+.row { display: flex; flex-wrap: wrap; gap: 4px; }
+.row input, .row select { flex: 1; min-width: 0; }
+/* With a model list, the name field is only for "Other…" and sits below it. */
+#model.below { flex-basis: 100%; order: 3; }
 button.icon { padding: 2px 8px; }
 .hint { margin: 5px 0 0; font-size: 12px; color: var(--vscode-descriptionForeground); line-height: 1.4; }
 .hint.inline { display: inline; margin: 0; font-weight: normal; }
@@ -295,6 +297,9 @@ const SETTINGS_SCRIPT = `
 let form = null;
 let settingsVersion = -1;
 let replacingKey = false;
+// Models listed by the provider; empty means the name is typed by hand.
+let models = [];
+const OTHER = '__other__';
 
 function providerById(id) { return state.settings.providers.find((p) => p.id === id); }
 
@@ -305,7 +310,7 @@ function renderSettings(force) {
   form = { provider: s.active.provider, model: s.active.model, baseUrl: s.active.baseUrl };
   replacingKey = false;
   $('api-key').value = '';
-  $('model-options').innerHTML = '';
+  models = [];
   setModelStatus('');
   setStatus('');
   const select = $('provider');
@@ -350,13 +355,50 @@ function drawForm() {
   show('key-optional', local);
   show('key-link', !!info.keyUrl && !local && !saved);
 
-  $('model').value = form.model;
-  $('model').placeholder = info.defaultModel ? 'Default (' + info.defaultModel + ')' : 'Choose a model';
+  drawModel();
+}
+
+// A real dropdown once models are listed (a datalist would filter them by
+// whatever is already typed), with "Other…" for names that are not listed.
+function drawModel() {
+  const info = providerById(form.provider);
+  const select = $('model-select');
+  const input = $('model');
+  const fallback = info.defaultModel ? 'Default (' + info.defaultModel + ')' : '';
+  if (!models.length) {
+    select.hidden = true;
+    input.hidden = false;
+    input.classList.remove('below');
+    input.value = form.model;
+    input.placeholder = fallback || 'Model name';
+    return;
+  }
+  select.innerHTML = '';
+  const add = (value, text) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    select.appendChild(option);
+  };
+  if (fallback || !form.model) add('', fallback || 'Choose a model');
+  for (const m of models) {
+    const name = m.label && m.label !== m.id ? m.label : m.id;
+    add(m.id, m.detail ? name + ' (' + m.detail + ')' : name);
+  }
+  add(OTHER, 'Other…');
+  const listed = !form.model || models.some((m) => m.id === form.model);
+  select.value = listed ? form.model : OTHER;
+  select.hidden = false;
+  input.classList.add('below');
+  input.hidden = select.value !== OTHER;
+  input.value = listed ? '' : form.model;
+  input.placeholder = 'Model name';
 }
 
 function readForm() {
   const info = providerById(form.provider);
-  form.model = $('model').value.trim();
+  const select = $('model-select');
+  form.model = !select.hidden && select.value !== OTHER ? select.value : $('model').value.trim();
   form.baseUrl = info.usesBaseUrl ? $('base-url').value.trim() : '';
   const key = $('api-key').value.trim();
   return { provider: form.provider, model: form.model, baseUrl: form.baseUrl, key: key || undefined };
@@ -386,14 +428,9 @@ function requestModels() {
 function onSettingsMessage(data) {
   if (data.type === 'models') {
     if (!form || data.provider !== form.provider) return;
-    const options = $('model-options');
-    options.innerHTML = '';
-    for (const m of data.models) {
-      const option = document.createElement('option');
-      option.value = m.id;
-      if (m.label && m.label !== m.id) option.label = m.label;
-      options.appendChild(option);
-    }
+    readForm();
+    models = data.models;
+    drawModel();
     setModelStatus(data.error || (data.models.length ? '' : 'No models found. Type a model name.'));
   } else if (data.type === 'testResult' || data.type === 'saved') {
     setStatus(data.text, data.ok ? 'ok' : 'error');
@@ -405,7 +442,7 @@ function switchProvider(id) {
   form = { provider: id, model: '', baseUrl: '' };
   replacingKey = false;
   $('api-key').value = '';
-  $('model-options').innerHTML = '';
+  models = [];
   setModelStatus('');
   setStatus('');
   drawForm();
@@ -444,6 +481,11 @@ $('preset').addEventListener('change', () => {
   readForm();
   drawForm();
   if ($('preset').value) requestModels(); else $('base-url').focus();
+});
+$('model-select').addEventListener('change', () => {
+  const other = $('model-select').value === OTHER;
+  show('model', other);
+  if (other) $('model').focus();
 });
 $('base-url').addEventListener('change', () => { readForm(); drawForm(); requestModels(); });
 $('api-key').addEventListener('change', () => { if ($('api-key').value.trim()) requestModels(); });
