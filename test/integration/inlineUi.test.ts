@@ -18,7 +18,10 @@ const ORIGINAL = [
   '}',
   '',
 ].join('\n');
-const STAGED = ORIGINAL.replace('  let sum = 0;', '  let sum = 0;\n  sum += items.length;');
+// A per-run token makes the hunk new each run, so the explanation cache cannot answer it.
+const RUN = Date.now().toString(36);
+const ADDED_LINE = `  sum += items.length; // run ${RUN}`;
+const STAGED = ORIGINAL.replace('  let sum = 0;', `  let sum = 0;\n${ADDED_LINE}`);
 const WORKING = STAGED.replace('// note 1', '// totals\n// note 1');
 
 const EXPLANATION = {
@@ -108,10 +111,29 @@ suite('inline UI', () => {
     ]);
   });
 
+  test('hovering a changed line offers Explain and Quiz me', async () => {
+    const hoverText = async (line: number) => {
+      const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+        'vscode.executeHoverProvider',
+        file,
+        new vscode.Position(line, 2),
+      );
+      return hovers
+        .flatMap((h) => h.contents)
+        .map((c) => (c instanceof vscode.MarkdownString ? c.value : String(c)))
+        .join('\n');
+    };
+
+    const onChange = await hoverText(11);
+    assert.match(onChange, /command:patchTutor\.explainHunk\?/);
+    assert.match(onChange, /command:patchTutor\.quizHunk\?/);
+    assert.doesNotMatch(await hoverText(5), /patchTutor/);
+  });
+
   test('Explain opens a comment thread on the hunk with the explanation', async () => {
     const document = await vscode.workspace.openTextDocument(file);
     const result = await api.hunks.getHunks(document);
-    const hunk = result?.hunks.find((h) => h.added.includes('  sum += items.length;'));
+    const hunk = result?.hunks.find((h) => h.added.includes(ADDED_LINE));
     assert.ok(hunk, 'expected the sum hunk');
 
     await vscode.commands.executeCommand('patchTutor.explainHunk', file, hunk.id);
@@ -125,7 +147,7 @@ suite('inline UI', () => {
     const body = thread.comments[0]?.body;
     assert.ok(body instanceof vscode.MarkdownString);
     assert.match(body.value, /\*\*Counts the items\.\*\*/);
-    assert.ok(requests.some((r) => r.includes('+  sum += items.length;')));
+    assert.ok(requests.some((r) => r.includes(`+${ADDED_LINE}`)));
 
     await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
     assert.strictEqual(api.comments.threadsFor(file).length, 0);
@@ -143,7 +165,7 @@ suite('inline UI', () => {
 
     assert.deepStrictEqual(
       result?.hunks.map((h) => h.added),
-      [['  sum += items.length;']],
+      [[ADDED_LINE]],
     );
   });
 });

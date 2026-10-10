@@ -13,8 +13,9 @@ import { HunkService } from './services/hunkService';
 import { createProvider, getModelKey } from './services/providerService';
 import { HUNK_DOCUMENT_SELECTOR, HunkCodeLensProvider } from './ui/codeLens';
 import { InlineComments } from './ui/comments';
-import { GutterDecorations } from './ui/decorations';
+import { HunkDecorations } from './ui/decorations';
 import { registerExplainCommands } from './ui/explainCommands';
+import { HunkHoverProvider } from './ui/hover';
 import { registerInlineCommands } from './ui/inlineCommands';
 import { registerProviderCommands } from './ui/providerCommands';
 import { StatusBar } from './ui/statusBar';
@@ -56,11 +57,12 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     statusBar,
     hunks,
     comments,
-    new GutterDecorations(context.extensionUri, hunks),
+    new HunkDecorations(context.extensionUri, hunks),
     vscode.languages.registerCodeLensProvider(
       HUNK_DOCUMENT_SELECTOR,
       new HunkCodeLensProvider(hunks),
     ),
+    vscode.languages.registerHoverProvider(HUNK_DOCUMENT_SELECTOR, new HunkHoverProvider(hunks)),
     vscode.commands.registerCommand('patchTutor.listStagedHunks', () => listStagedHunks(output)),
   );
   registerProviderCommands(context);

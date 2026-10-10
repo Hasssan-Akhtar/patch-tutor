@@ -10,7 +10,9 @@ export function registerInlineCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'patchTutor.explainHunk',
-      async (uri: vscode.Uri, hunkId: string) => {
+      // Hover links pass the URI as a string; CodeLens passes a Uri.
+      async (target: vscode.Uri | string, hunkId: string) => {
+        const uri = typeof target === 'string' ? vscode.Uri.parse(target) : target;
         const located = await hunks.findHunk(uri, hunkId);
         if (!located) {
           void vscode.window.showWarningMessage(

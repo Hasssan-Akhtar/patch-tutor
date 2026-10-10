@@ -2,25 +2,39 @@ import * as vscode from 'vscode';
 import type { HunkService } from '../services/hunkService';
 import { hunkRange } from './hunkRange';
 
-/** A lightbulb in the gutter on the first changed line of every hunk in visible editors. */
-export class GutterDecorations implements vscode.Disposable {
-  private readonly type: vscode.TextEditorDecorationType;
+/**
+ * Marks explainable hunks in visible editors: a lightbulb in the gutter on the
+ * first changed line, a soft highlight on the changed lines, and a marker in
+ * the scrollbar so changes are easy to find in long files.
+ */
+export class HunkDecorations implements vscode.Disposable {
+  private readonly gutter: vscode.TextEditorDecorationType;
+  private readonly highlight = vscode.window.createTextEditorDecorationType({
+    isWholeLine: true,
+    backgroundColor: new vscode.ThemeColor('patchTutor.changedLineBackground'),
+    overviewRulerColor: new vscode.ThemeColor('patchTutor.changedLineRuler'),
+    overviewRulerLane: vscode.OverviewRulerLane.Center,
+  });
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
     extensionUri: vscode.Uri,
     private readonly hunks: HunkService,
   ) {
-    this.type = vscode.window.createTextEditorDecorationType({
+    this.gutter = vscode.window.createTextEditorDecorationType({
       gutterIconPath: vscode.Uri.joinPath(extensionUri, 'media', 'lightbulb.svg'),
       gutterIconSize: 'contain',
     });
     this.disposables.push(
-      this.type,
+      this.gutter,
+      this.highlight,
       hunks.onDidChange(() => this.refresh()),
       vscode.window.onDidChangeVisibleTextEditors(() => this.refresh()),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('patchTutor.gutterIcons')) {
+        if (
+          e.affectsConfiguration('patchTutor.gutterIcons') ||
+          e.affectsConfiguration('patchTutor.highlightChangedLines')
+        ) {
           this.refresh();
         }
       }),
@@ -29,19 +43,20 @@ export class GutterDecorations implements vscode.Disposable {
   }
 
   refresh(): void {
-    const enabled = vscode.workspace.getConfiguration('patchTutor').get('gutterIcons', true);
     for (const editor of vscode.window.visibleTextEditors) {
-      void this.decorate(editor, enabled);
+      void this.decorate(editor);
     }
   }
 
-  private async decorate(editor: vscode.TextEditor, enabled: boolean): Promise<void> {
-    const result = enabled ? await this.hunks.getHunks(editor.document) : undefined;
-    const ranges = (result?.hunks ?? []).map((hunk) => {
-      const line = hunkRange(hunk, editor.document).start.line;
-      return new vscode.Range(line, 0, line, 0);
-    });
-    editor.setDecorations(this.type, ranges);
+  private async decorate(editor: vscode.TextEditor): Promise<void> {
+    const config = vscode.workspace.getConfiguration('patchTutor');
+    const result = await this.hunks.getHunks(editor.document);
+    const ranges = (result?.hunks ?? []).map((hunk) => hunkRange(hunk, editor.document));
+    editor.setDecorations(
+      this.gutter,
+      config.get('gutterIcons', true) ? ranges.map((r) => new vscode.Range(r.start, r.start)) : [],
+    );
+    editor.setDecorations(this.highlight, config.get('highlightChangedLines', true) ? ranges : []);
   }
 
   dispose(): void {

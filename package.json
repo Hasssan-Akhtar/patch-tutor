@@ -127,6 +127,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Show a lightbulb in the gutter on each changed hunk that Patch Tutor can explain."
+        },
+        "patchTutor.highlightChangedLines": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Softly highlight lines Patch Tutor can explain, and mark them in the scrollbar. Hover a highlighted line for Explain and Quiz me buttons. Colors can be changed with `workbench.colorCustomizations` (`patchTutor.changedLineBackground`, `patchTutor.changedLineRuler`)."
         }
       }
     },
@@ -183,7 +188,29 @@
           "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
         }
       ]
-    }
+    },
+    "colors": [
+      {
+        "id": "patchTutor.changedLineBackground",
+        "description": "Background of changed lines Patch Tutor can explain.",
+        "defaults": {
+          "dark": "#F5C5181A",
+          "light": "#F5C51826",
+          "highContrast": null,
+          "highContrastLight": null
+        }
+      },
+      {
+        "id": "patchTutor.changedLineRuler",
+        "description": "Scrollbar marker for changed lines Patch Tutor can explain.",
+        "defaults": {
+          "dark": "#F5C518B3",
+          "light": "#D4A500B3",
+          "highContrast": "#F5C518",
+          "highContrastLight": "#8A6D00"
+        }
+      }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",
