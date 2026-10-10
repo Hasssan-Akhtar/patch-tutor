@@ -216,3 +216,21 @@ describe('diffBlock', () => {
     );
   });
 });
+
+describe('dashboard page script', () => {
+  it('is valid JavaScript', () => {
+    const html = dashboardHtml(
+      {
+        stats: progressStats({ answeredTotal: 0, attempts: [] }, NOW),
+        concepts: [],
+        activity: [entry({})],
+        hunks: {},
+        now: NOW,
+      },
+      { nonce: 'n', cspSource: 's' },
+    );
+    const script = /<script nonce="n">([\s\S]*)<\/script>/.exec(html)?.[1] ?? '';
+
+    expect(() => new Function(script)).not.toThrow();
+  });
+});

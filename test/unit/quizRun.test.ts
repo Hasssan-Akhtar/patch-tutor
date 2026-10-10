@@ -247,3 +247,15 @@ describe('quiz history', () => {
     }
   });
 });
+
+describe('chat page script', () => {
+  it('is valid JavaScript (escaping inside the template literal is easy to get wrong)', () => {
+    const html = chatShellHtml({ nonce: 'n', cspSource: 's', avatarUri: 'a' });
+    const script = /<script nonce="n">([\s\S]*)<\/script>/.exec(html)?.[1] ?? '';
+
+    expect(script.length).toBeGreaterThan(1000);
+    // Parsing only; nothing runs. A stray "//" in a regex would make this throw.
+    expect(() => new Function(script)).not.toThrow();
+    expect(script).toContain(String.raw`/^http:\/\/(localhost|127\.0\.0\.1)/`);
+  });
+});

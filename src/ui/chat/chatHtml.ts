@@ -346,7 +346,7 @@ function drawForm() {
   const saved = info.keySaved && !replacingKey;
   show('key-saved', saved);
   show('api-key', !saved);
-  const local = form.provider === 'openaiCompatible' && /^http:\/\/(localhost|127\.0\.0\.1)/.test($('base-url').value);
+  const local = form.provider === 'openaiCompatible' && /^http:\\/\\/(localhost|127\\.0\\.0\\.1)/.test($('base-url').value);
   show('key-optional', local);
   show('key-link', !!info.keyUrl && !local && !saved);
 
