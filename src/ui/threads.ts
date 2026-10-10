@@ -47,7 +47,7 @@ export class ThreadRegistry implements vscode.Disposable {
   constructor(extensionUri: vscode.Uri) {
     this.tutor = {
       name: 'Patch Tutor',
-      iconPath: vscode.Uri.joinPath(extensionUri, 'media', 'avatar.svg'),
+      iconPath: vscode.Uri.joinPath(extensionUri, 'media', 'icon.svg'),
     };
     this.controller.options = {
       prompt: 'Answer the question…',

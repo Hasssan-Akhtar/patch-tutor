@@ -5,6 +5,11 @@
   "version": "0.0.1",
   "publisher": "patch-tutor",
   "license": "MIT",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#13202B",
+    "theme": "dark"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/OWNER/patch-tutor"
@@ -152,7 +157,7 @@
         "patchTutor.gutterIcons": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Show a lightbulb in the gutter on each changed hunk that Patch Tutor can explain."
+          "markdownDescription": "Show the Patch Tutor icon in the gutter on each changed hunk that Patch Tutor can explain."
         },
         "patchTutor.highlightChangedLines": {
           "type": "boolean",

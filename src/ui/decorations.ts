@@ -3,7 +3,7 @@ import type { HunkService } from '../services/hunkService';
 import { hunkRange } from './hunkRange';
 
 /**
- * Marks explainable hunks in visible editors: a lightbulb in the gutter on the
+ * Marks explainable hunks in visible editors: the Patch Tutor icon in the gutter on the
  * first changed line, a soft highlight on the changed lines, and a marker in
  * the scrollbar so changes are easy to find in long files.
  */
@@ -22,7 +22,7 @@ export class HunkDecorations implements vscode.Disposable {
     private readonly hunks: HunkService,
   ) {
     this.gutter = vscode.window.createTextEditorDecorationType({
-      gutterIconPath: vscode.Uri.joinPath(extensionUri, 'media', 'lightbulb.svg'),
+      gutterIconPath: vscode.Uri.joinPath(extensionUri, 'media', 'gutter.svg'),
       gutterIconSize: 'contain',
     });
     this.disposables.push(

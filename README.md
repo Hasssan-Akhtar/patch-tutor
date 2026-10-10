@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/logo-dark.png">
+    <img src="media/logo.png" alt="Patch Tutor" width="420">
+  </picture>
+</p>
+
 # Patch Tutor
 
 A free, open-source VS Code extension that turns your own git changes into short lessons:
