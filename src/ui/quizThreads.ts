@@ -66,13 +66,12 @@ export class QuizThreads {
       );
       quiz.comments.pop();
       if (result.ok) {
-        quiz.comments.push(this.threads.tutorComment(gradeMarkdown(result.grade, question)));
         quiz.session.record(result.grade.verdict);
+        this.advance(entry, quiz, gradeMarkdown(result.grade, question));
       } else {
-        quiz.comments.push(this.threads.tutorComment(ungradedMarkdown(result.raw, question)));
         quiz.session.record('ungraded');
+        this.advance(entry, quiz, ungradedMarkdown(result.raw, question));
       }
-      this.advance(entry, quiz);
     } catch (error) {
       if (quiz.controller.signal.aborted) {
         return;
@@ -104,30 +103,35 @@ export class QuizThreads {
     if (!entry || !quiz || quiz.busy || !question) {
       return;
     }
-    quiz.comments.push(
-      this.threads.tutorComment(
-        outcome === 'skipped' ? skipMarkdown(question) : revealMarkdown(question),
-      ),
-    );
     quiz.session.record(outcome);
-    this.advance(entry, quiz);
+    this.advance(
+      entry,
+      quiz,
+      outcome === 'skipped' ? skipMarkdown(question) : revealMarkdown(question),
+    );
     this.threads.render(entry);
   }
 
-  /** Posts the next question, or the summary when the quiz is over. */
-  private advance(entry: ThreadEntry, quiz: QuizState): void {
+  /**
+   * Posts one comment holding the feedback on the last question (if any) and
+   * the next question, or the summary when the quiz is over.
+   */
+  private advance(entry: ThreadEntry, quiz: QuizState, feedback?: string): void {
     const next = quiz.session.current;
+    let after: string;
+    let summary: QuizSummary | undefined;
     if (next) {
-      quiz.comments.push(
-        this.threads.tutorComment(
-          questionMarkdown(next, quiz.session.index, quiz.session.questions.length),
-        ),
-      );
-      return;
+      after = questionMarkdown(next, quiz.session.index, quiz.session.questions.length);
+    } else {
+      summary = quiz.session.summary();
+      after = summaryMarkdown(summary);
     }
-    const summary = quiz.session.summary();
-    quiz.comments.push(this.threads.tutorComment(summaryMarkdown(summary)));
-    this.finished.fire({ hunk: entry.hunk, summary });
+    quiz.comments.push(
+      this.threads.tutorComment(feedback ? `${feedback}\n\n---\n\n${after}` : after),
+    );
+    if (summary) {
+      this.finished.fire({ hunk: entry.hunk, summary });
+    }
   }
 
   private async run(entry: ThreadEntry): Promise<void> {

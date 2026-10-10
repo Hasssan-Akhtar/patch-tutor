@@ -1,6 +1,10 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { Hunk } from '../../src/git/hunk';
-import { QuizSession } from '../../src/learning/quizSession';
+import { QuizSession, type QuizSummary } from '../../src/learning/quizSession';
+import { ReportStore } from '../../src/learning/reports';
 import type { LLMProvider } from '../../src/llm/provider';
 import { GradeSchema, QuizSchema, type Question } from '../../src/llm/schemas';
 import gradePrompt from '../../src/prompts/grade.md';
@@ -80,6 +84,8 @@ describe('QuizSession', () => {
     expect(session.summary()).toMatchObject({
       correct: 1,
       partly: 1,
+      revealed: 1,
+      skipped: 0,
       total: 3,
       toReview: ['closures'],
     });
@@ -124,19 +130,59 @@ describe('quiz markdown', () => {
     );
   });
 
+  const summary = (over: Partial<QuizSummary>): QuizSummary => ({
+    correct: 0,
+    partly: 0,
+    revealed: 0,
+    skipped: 0,
+    total: 3,
+    toReview: [],
+    results: [],
+    ...over,
+  });
+
   it('cheers a perfect score and lists concepts to review otherwise', () => {
-    expect(
-      summaryMarkdown({ correct: 3, partly: 0, total: 3, toReview: [], results: [] }),
-    ).toContain('Perfect score! 3/3 correct');
-    const mixed = summaryMarkdown({
-      correct: 1,
-      partly: 1,
-      total: 3,
-      toReview: ['closures'],
-      results: [],
-    });
-    expect(mixed).toContain('Nice work: 1/3 correct, 1 partly');
+    expect(summaryMarkdown(summary({ correct: 3 }))).toContain('Perfect! 3/3 correct');
+    const mixed = summaryMarkdown(
+      summary({ correct: 1, partly: 1, revealed: 1, toReview: ['closures'] }),
+    );
+    expect(mixed).toContain('Nice work: 1/2 correct, 1 partly');
+    expect(mixed).toContain('(peeked at 1)');
     expect(mixed).toContain('&nbsp;closures&nbsp;');
+  });
+
+  it('does not call peeking at every answer a failure', () => {
+    const md = summaryMarkdown(summary({ revealed: 2, skipped: 1 }));
+
+    expect(md).toContain('No answers this round');
+    expect(md).not.toMatch(/0\/\d correct/);
+    expect(md).not.toContain('miss');
+  });
+});
+
+describe('ReportStore', () => {
+  it('appends one JSON line per report', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'patch-tutor-reports-'));
+    try {
+      const store = new ReportStore(join(dir, 'nested', 'reports.jsonl'));
+      const report = {
+        reportedAt: '2026-10-11T00:00:00.000Z',
+        filePath: 'a.js',
+        hunkId: 'h',
+        diff: '@@',
+        model: 'vscodeLm:default',
+        explainPromptVersion: 'v1',
+        comments: ['wrong!'],
+      };
+
+      await store.add(report);
+      await store.add({ ...report, hunkId: 'h2' });
+
+      const lines = readFileSync(store.filePath, 'utf8').trim().split('\n');
+      expect(lines.map((l) => (JSON.parse(l) as { hunkId: string }).hunkId)).toEqual(['h', 'h2']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

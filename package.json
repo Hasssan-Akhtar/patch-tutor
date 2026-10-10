@@ -100,6 +100,17 @@
         "command": "patchTutor.quiz.skip",
         "title": "Skip",
         "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.thread.reportWrong",
+        "title": "This is wrong",
+        "category": "Patch Tutor",
+        "icon": "$(report)"
+      },
+      {
+        "command": "patchTutor.openReports",
+        "title": "Open wrong-answer reports",
+        "category": "Patch Tutor"
       }
     ],
     "configuration": {
@@ -191,6 +202,10 @@
         {
           "command": "patchTutor.quiz.skip",
           "when": "false"
+        },
+        {
+          "command": "patchTutor.thread.reportWrong",
+          "when": "false"
         }
       ],
       "comments/commentThread/title": [
@@ -210,8 +225,13 @@
           "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
         },
         {
-          "command": "patchTutor.thread.dismiss",
+          "command": "patchTutor.thread.reportWrong",
           "group": "inline@4",
+          "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
+        },
+        {
+          "command": "patchTutor.thread.dismiss",
+          "group": "inline@5",
           "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
         }
       ],

@@ -6,6 +6,7 @@ import { fixtureContext, runPromptEvals } from './dev/promptEvals';
 import { parseUnifiedDiff } from './git/diffParser';
 import { getActiveRepository, getStagedDiff } from './git/gitService';
 import type { Hunk } from './git/hunk';
+import { ReportStore } from './learning/reports';
 import { metered } from './llm/metered';
 import type { LLMProvider } from './llm/provider';
 import { ExplainService } from './services/explainService';
@@ -77,7 +78,14 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
   );
   registerProviderCommands(context);
   registerExplainCommands(context, explainService, output);
-  registerInlineCommands(context, hunks, threads, comments, quizzes);
+  registerInlineCommands(
+    context,
+    hunks,
+    threads,
+    comments,
+    quizzes,
+    new ReportStore(vscode.Uri.joinPath(context.globalStorageUri, 'reports.jsonl').fsPath),
+  );
 
   if (context.extensionMode === vscode.ExtensionMode.Development) {
     registerDevCommands(context, provider);

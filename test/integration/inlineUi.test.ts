@@ -199,19 +199,24 @@ suite('inline UI', () => {
       thread,
       text: 'It adds the count',
     });
-    assert.strictEqual(thread.comments.at(-3)?.author.name, 'You');
-    assert.match(bodies(thread).at(-2) ?? '', /Nailed it!/);
-    assert.match(bodies(thread).at(-1) ?? '', /Question 2 of 3/);
+    assert.strictEqual(thread.comments.at(-2)?.author.name, 'You');
+    // Feedback and the next question arrive as one comment.
+    assert.match(bodies(thread).at(-1) ?? '', /Nailed it![\s\S]*Question 2 of 3/);
     assert.ok(requests.some((r) => r.includes('It adds the count') && r.includes('Answer 1.')));
 
     await vscode.commands.executeCommand('patchTutor.quiz.showAnswer', { thread, text: '' });
-    assert.match(bodies(thread).at(-2) ?? '', /Answer 2\./);
-    assert.match(bodies(thread).at(-1) ?? '', /Question 3 of 3/);
+    assert.match(bodies(thread).at(-1) ?? '', /Answer 2\.[\s\S]*Question 3 of 3/);
 
     await vscode.commands.executeCommand('patchTutor.quiz.skip', { thread, text: '' });
-    assert.match(bodies(thread).at(-1) ?? '', /Quiz done!.*1\/3 correct/s);
+    assert.match(
+      bodies(thread).at(-1) ?? '',
+      /Quiz done![\s\S]*1\/1 correct[\s\S]*peeked at 1, skipped 1/,
+    );
     assert.strictEqual(thread.canReply, false);
     assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
+
+    await vscode.commands.executeCommand('patchTutor.thread.reportWrong', thread);
+    assert.match(bodies(thread).at(-1) ?? '', /Thanks for flagging this/);
 
     await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
   });

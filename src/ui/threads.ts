@@ -24,6 +24,8 @@ export interface ThreadEntry {
   explanation?: vscode.Comment;
   explainController?: AbortController;
   quiz?: QuizState;
+  /** Short messages appended after everything else, e.g. thanks for a report. */
+  notes?: vscode.Comment[];
 }
 
 export const DEFAULT_TITLE = '💡 Patch Tutor';
@@ -88,10 +90,16 @@ export class ThreadRegistry implements vscode.Disposable {
     thread.comments = [
       ...(entry.explanation ? [entry.explanation] : []),
       ...(quiz?.comments ?? []),
+      ...(entry.notes ?? []),
     ];
     thread.contextValue = `patchTutorThread ${entry.depth}${quizOpen ? ' quiz' : ''}`;
     thread.canReply = quizOpen;
     thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+  }
+
+  addNote(entry: ThreadEntry, markdownText: string): void {
+    entry.notes = [...(entry.notes ?? []), this.tutorComment(markdownText)];
+    this.render(entry);
   }
 
   close(thread: vscode.CommentThread): void {

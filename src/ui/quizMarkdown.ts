@@ -55,15 +55,27 @@ export function skipMarkdown(question: Question): string {
 }
 
 export function summaryMarkdown(summary: QuizSummary): string {
-  const { correct, partly, total, toReview } = summary;
-  const score = `${correct}/${total} correct${partly > 0 ? `, ${partly} partly` : ''}`;
+  const { correct, partly, revealed, skipped, total, toReview } = summary;
+  const attempted = total - revealed - skipped;
   let headline: string;
-  if (correct === total) {
-    headline = label('🏆', `Perfect score! ${score}`, COLORS.brightGreen);
-  } else if (correct + partly / 2 >= total / 2) {
-    headline = label('✨', `Nice work: ${score}`, COLORS.green);
+  if (attempted === 0) {
+    headline = `${label('🙈', 'No answers this round', COLORS.blue)} Peeking is fine. Try another round once it has sunk in.`;
   } else {
-    headline = `${label('🌱', score, COLORS.blue)} Every miss is something you know now.`;
+    const score = `${correct}/${attempted} correct${partly > 0 ? `, ${partly} partly` : ''}`;
+    if (correct === attempted) {
+      headline = label('🏆', `Perfect! ${score}`, COLORS.brightGreen);
+    } else if (correct + partly / 2 >= attempted / 2) {
+      headline = label('✨', `Nice work: ${score}`, COLORS.green);
+    } else {
+      headline = `${label('🌱', score, COLORS.blue)} Every miss is something you know now.`;
+    }
+    const passed = [
+      revealed > 0 ? `peeked at ${revealed}` : undefined,
+      skipped > 0 ? `skipped ${skipped}` : undefined,
+    ].filter(Boolean);
+    if (passed.length > 0) {
+      headline += ` _(${passed.join(', ')})_`;
+    }
   }
   const parts = [`🏁 **Quiz done!** ${headline}`];
   if (toReview.length > 0) {

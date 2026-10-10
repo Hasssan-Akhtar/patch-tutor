@@ -10,6 +10,9 @@ export interface QuestionResult {
 export interface QuizSummary {
   correct: number;
   partly: number;
+  /** Answers looked at with Show answer. */
+  revealed: number;
+  skipped: number;
   total: number;
   /** Concepts from questions that were not answered correctly. */
   toReview: string[];
@@ -55,6 +58,8 @@ export class QuizSession {
     return {
       correct: count('correct'),
       partly: count('partly'),
+      revealed: count('revealed'),
+      skipped: count('skipped'),
       total: this.questions.length,
       toReview,
       results: [...this.results],

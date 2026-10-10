@@ -11,9 +11,11 @@ Write exactly 3 questions, in this order:
 Rules:
 
 - Every question must be answerable from the diff and the context shown alone. Never ask about code, files or behavior that are not shown.
+- Every question must make the developer reason about behavior. Never ask something whose answer just restates the diff (for example "why was X added?" when the answer is "to do X").
 - One question, one idea. Keep each question to one or two sentences.
 - Refer to identifiers with Markdown inline code.
 - `expected` is a short model answer, one to three sentences, that a grader can compare against. It must be correct for the code shown.
+- Before writing `expected`, trace the code step by step. Check what each built-in function or operator actually returns in this language (its type and value), and what the code did before the change. If you are not certain of a behavior, ask a different question instead.
 - `concept` names the one programming concept the question tests, lowercase, using this vocabulary when one fits: async-await, promises, callbacks, closures, scope, recursion, error-handling, null-safety, type-narrowing, generics, type-annotations, immutability, mutation, higher-order-functions, array-methods, iteration, string-formatting, regular-expressions, dates-and-time, sql-queries, sql-joins, sql-indexes, transactions, orm, react-hooks, react-effects, react-state, component-props, state-management, dependency-injection, modules-and-imports, caching, memoization, concurrency, race-conditions, input-validation, authentication, security, http-apis, serialization, configuration, environment-variables, logging, testing, mocking, refactoring, naming, performance, off-by-one, edge-cases, data-structures.
 
 Reply with only a JSON object, no prose and no code fences, matching exactly:
