@@ -124,15 +124,10 @@
         "icon": "$(clear-all)"
       },
       {
-        "command": "patchTutor.refreshWeakSpots",
-        "title": "Refresh",
+        "command": "patchTutor.showProgress",
+        "title": "Show progress",
         "category": "Patch Tutor",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "patchTutor.showConceptHunk",
-        "title": "Show change",
-        "category": "Patch Tutor"
+        "icon": "$(graph)"
       }
     ],
     "configuration": {
@@ -228,14 +223,6 @@
         {
           "command": "patchTutor.thread.reportWrong",
           "when": "false"
-        },
-        {
-          "command": "patchTutor.refreshWeakSpots",
-          "when": "false"
-        },
-        {
-          "command": "patchTutor.showConceptHunk",
-          "when": "false"
         }
       ],
       "comments/commentThread/title": [
@@ -284,14 +271,9 @@
       ],
       "view/title": [
         {
-          "command": "patchTutor.refreshWeakSpots",
-          "when": "view == patchTutor.weakSpots",
-          "group": "navigation@1"
-        },
-        {
           "command": "patchTutor.resetProgress",
-          "when": "view == patchTutor.weakSpots",
-          "group": "navigation@2"
+          "when": "view == patchTutor.progress",
+          "group": "navigation@1"
         }
       ]
     },
@@ -329,19 +311,14 @@
     "views": {
       "patchTutor": [
         {
-          "id": "patchTutor.weakSpots",
-          "name": "Weak spots",
+          "type": "webview",
+          "id": "patchTutor.progress",
+          "name": "Progress",
           "icon": "media/activitybar.svg",
           "contextualTitle": "Patch Tutor"
         }
       ]
-    },
-    "viewsWelcome": [
-      {
-        "view": "patchTutor.weakSpots",
-        "contents": "No quiz results yet.\n\nOpen a changed file and click **Quiz me** above a change. Concepts you find tricky show up here, weakest first, so you know what to practise.\n\nEverything stays on this machine."
-      }
-    ]
+    }
   },
   "scripts": {
     "build": "node esbuild.mjs",

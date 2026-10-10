@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { PatchTutorTestApi } from '../../src/extension';
 import { getGitApi } from '../../src/git/gitService';
+import { showSavedHunk } from '../../src/ui/dashboard/dashboardView';
 
 // Padding keeps the two working-tree changes more than git's 3 context lines apart,
 // so they become separate hunks.
@@ -216,7 +217,7 @@ suite('inline UI', () => {
     assert.strictEqual(thread.canReply, false);
     assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
 
-    // Weak spots: correct (1) + revealed (0) for the same concept; the skip is not counted.
+    // Progress: correct (1) + revealed (0) for the same concept; the skip is logged but not scored.
     const [concept, ...others] = await waitFor(async () => {
       const found = await api.concepts.summaries();
       return found[0]?.attempts === 2 ? found : undefined;
@@ -226,7 +227,22 @@ suite('inline UI', () => {
     assert.strictEqual(concept?.score, 0.5);
     assert.strictEqual(concept?.hunks[0]?.hunkId, hunk.id);
 
-    await vscode.commands.executeCommand('patchTutor.showConceptHunk', concept?.hunks[0]);
+    // Answers are saved asynchronously; wait until the skip is logged too.
+    const model = await waitFor(async () => {
+      const m = await api.dashboard.model();
+      return m.activity.length === 3 ? m : undefined;
+    }, 'all three answers logged');
+    assert.deepStrictEqual(
+      model.activity.map((a) => a.outcome),
+      ['skipped', 'revealed', 'correct'],
+    );
+    assert.strictEqual(model.stats.answered, 2);
+    assert.strictEqual(model.stats.streakDays, 1);
+    await vscode.commands.executeCommand('patchTutor.showProgress');
+
+    const ref = concept?.hunks[0];
+    assert.ok(ref);
+    await showSavedHunk(ref);
     const shown = vscode.window.activeTextEditor?.document;
     assert.strictEqual(shown?.languageId, 'diff');
     assert.ok(shown?.getText().includes(ADDED_LINE));

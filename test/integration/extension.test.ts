@@ -25,7 +25,7 @@ suite('Patch Tutor extension', () => {
       'patchTutor.chooseModel',
       'patchTutor.testConnection',
       'patchTutor.resetProgress',
-      'patchTutor.showConceptHunk',
+      'patchTutor.showProgress',
     ]) {
       assert.ok(commands.includes(command), `${command} is not registered`);
     }

@@ -115,9 +115,9 @@ describe('ConceptStore', () => {
 
   it('merges spellings, persists, and sorts weakest first', async () => {
     const s = store();
-    await s.record({ concept: 'Async/Await', credit: 0, hunk: hunk('h1') });
-    await s.record({ concept: 'async await', credit: 0.5, hunk: hunk('h2') });
-    await s.record({ concept: 'closures', credit: 1, hunk: hunk('h3') });
+    await s.record({ concept: 'Async/Await', outcome: 'wrong', question: 'Q?', hunk: hunk('h1') });
+    await s.record({ concept: 'async await', outcome: 'partly', question: 'Q?', hunk: hunk('h2') });
+    await s.record({ concept: 'closures', outcome: 'correct', question: 'Q?', hunk: hunk('h3') });
 
     const summaries = await store().summaries();
 
@@ -132,10 +132,15 @@ describe('ConceptStore', () => {
   it('keeps one entry per hunk, newest first, and trims long diffs', async () => {
     const s = store();
     const longDiff = Array.from({ length: 100 }, (_, i) => `+line ${i}`).join('\n');
-    await s.record({ concept: 'scope', credit: 1, hunk: hunk('h1') });
-    await s.record({ concept: 'scope', credit: 1, hunk: hunk('h2', longDiff) });
+    await s.record({ concept: 'scope', outcome: 'correct', question: 'Q?', hunk: hunk('h1') });
+    await s.record({
+      concept: 'scope',
+      outcome: 'correct',
+      question: 'Q?',
+      hunk: hunk('h2', longDiff),
+    });
     clock += DAY;
-    await s.record({ concept: 'scope', credit: 0, hunk: hunk('h1') });
+    await s.record({ concept: 'scope', outcome: 'wrong', question: 'Q?', hunk: hunk('h1') });
 
     const [scope] = await s.summaries();
 
@@ -150,20 +155,71 @@ describe('ConceptStore', () => {
     let changes = 0;
     s.onDidChange(() => changes++);
 
-    await s.record({ concept: 'scope', credit: 1, hunk: hunk('h1') });
+    await s.record({ concept: 'scope', outcome: 'correct', question: 'Q?', hunk: hunk('h1') });
     await s.clear();
 
     expect(changes).toBe(2);
     expect(await s.summaries()).toEqual([]);
-    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ version: 1, concepts: {} });
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
+      version: 1,
+      concepts: {},
+      activity: [],
+    });
   });
 
   it('ignores blank concept names and starts fresh from a corrupt file', async () => {
-    await store().record({ concept: '  ', credit: 1, hunk: hunk('h1') });
+    await store().record({ concept: '  ', outcome: 'correct', question: 'Q?', hunk: hunk('h1') });
     expect(await store().summaries()).toEqual([]);
 
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, '{ not json');
     expect(await store().summaries()).toEqual([]);
+  });
+});
+
+describe('ConceptStore activity', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'patch-tutor-activity-'));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('logs every answer newest first, but skips do not affect scores', async () => {
+    let clock = 1000;
+    const s = new ConceptStore(join(dir, 'c.json'), () => clock++);
+    const hunk = { hunkId: 'h1', filePath: 'src/a.ts', line: 1, diff: '+x' };
+
+    await s.record({ concept: 'Closure', outcome: 'correct', question: 'First?', hunk });
+    await s.record({ concept: 'closures', outcome: 'skipped', question: 'Second?', hunk });
+
+    const activity = await s.activity();
+    expect(activity.map((a) => [a.question, a.outcome, a.concept])).toEqual([
+      ['Second?', 'skipped', 'closures'],
+      ['First?', 'correct', 'closures'],
+    ]);
+    const [closures] = await s.summaries();
+    expect(closures).toMatchObject({ attempts: 1, score: 1 });
+    expect((await s.findHunk('h1'))?.filePath).toBe('src/a.ts');
+    expect(await s.findHunk('missing')).toBeUndefined();
+  });
+
+  it('reads files written before the activity log existed', async () => {
+    const file = join(dir, 'old.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        concepts: { scope: { attempts: [{ at: 1, credit: 1 }], hunks: [] } },
+      }),
+    );
+
+    const s = new ConceptStore(file, () => 2);
+
+    expect(await s.activity()).toEqual([]);
+    expect((await s.summaries()).map((c) => c.name)).toEqual(['scope']);
   });
 });

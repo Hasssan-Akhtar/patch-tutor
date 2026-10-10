@@ -1,10 +1,12 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { z } from 'zod';
-import { masteryScore, normalizeConcept, type Attempt } from './concepts';
+import { creditFor, masteryScore, normalizeConcept } from './concepts';
+import type { Outcome } from './quizSession';
 
 const MAX_ATTEMPTS_PER_CONCEPT = 50;
 const MAX_HUNKS_PER_CONCEPT = 10;
+const MAX_ACTIVITY = 200;
 const MAX_DIFF_LINES = 60;
 
 const HunkRefSchema = z.object({
@@ -23,9 +25,21 @@ const ConceptSchema = z.object({
   hunks: z.array(HunkRefSchema),
 });
 
+const ActivitySchema = z.object({
+  at: z.number(),
+  concept: z.string(),
+  outcome: z.enum(['correct', 'partly', 'wrong', 'revealed', 'skipped', 'ungraded']),
+  question: z.string(),
+  filePath: z.string(),
+  hunkId: z.string(),
+});
+export type ActivityEntry = z.infer<typeof ActivitySchema>;
+
 const FileSchema = z.object({
   version: z.literal(1),
   concepts: z.record(z.string(), ConceptSchema),
+  /** Newest first. Added after the first release of this file, so it may be missing. */
+  activity: z.array(ActivitySchema).default([]),
 });
 type StoreFile = z.infer<typeof FileSchema>;
 
@@ -41,13 +55,15 @@ export interface ConceptSummary {
 
 export interface RecordedAnswer {
   concept: string;
-  credit: number;
+  outcome: Outcome;
+  question: string;
   hunk: Omit<HunkRef, 'lastSeen'>;
 }
 
 /**
- * Quiz results per concept, saved to one JSON file on this machine only.
- * Concept names are normalized so different spellings share a history.
+ * Quiz results per concept plus a log of recent answers, saved to one JSON
+ * file on this machine only. Concept names are normalized so different
+ * spellings share a history.
  */
 export class ConceptStore {
   private data: StoreFile | undefined;
@@ -72,19 +88,33 @@ export class ConceptStore {
     const data = await this.load();
     const now = this.now();
     const concept = data.concepts[name] ?? { attempts: [], hunks: [] };
-    concept.attempts = [...concept.attempts, { at: now, credit: answer.credit }].slice(
-      -MAX_ATTEMPTS_PER_CONCEPT,
-    );
+
+    const credit = creditFor(answer.outcome);
+    if (credit !== undefined) {
+      concept.attempts = [...concept.attempts, { at: now, credit }].slice(
+        -MAX_ATTEMPTS_PER_CONCEPT,
+      );
+    }
     const ref: HunkRef = { ...answer.hunk, diff: trimLines(answer.hunk.diff), lastSeen: now };
     concept.hunks = [ref, ...concept.hunks.filter((h) => h.hunkId !== ref.hunkId)].slice(
       0,
       MAX_HUNKS_PER_CONCEPT,
     );
     data.concepts[name] = concept;
+
+    const entry: ActivityEntry = {
+      at: now,
+      concept: name,
+      outcome: answer.outcome,
+      question: answer.question,
+      filePath: answer.hunk.filePath,
+      hunkId: answer.hunk.hunkId,
+    };
+    data.activity = [entry, ...data.activity].slice(0, MAX_ACTIVITY);
     await this.save(data);
   }
 
-  /** All concepts, weakest first; ties go to the most recently practised. */
+  /** Concepts with at least one counted attempt, weakest first; ties go to the most recent. */
   async summaries(): Promise<ConceptSummary[]> {
     const data = await this.load();
     const now = this.now();
@@ -99,7 +129,7 @@ export class ConceptStore {
             name,
             score,
             attempts: concept.attempts.length,
-            correct: concept.attempts.filter((a: Attempt) => a.credit === 1).length,
+            correct: concept.attempts.filter((a) => a.credit === 1).length,
             lastSeen: Math.max(...concept.attempts.map((a) => a.at)),
             hunks: concept.hunks,
           },
@@ -108,8 +138,25 @@ export class ConceptStore {
       .sort((a, b) => a.score - b.score || b.lastSeen - a.lastSeen);
   }
 
+  /** Recent answers, newest first. */
+  async activity(): Promise<ActivityEntry[]> {
+    return [...(await this.load()).activity];
+  }
+
+  /** The saved change a concept or activity entry points at. */
+  async findHunk(hunkId: string): Promise<HunkRef | undefined> {
+    const data = await this.load();
+    for (const concept of Object.values(data.concepts)) {
+      const ref = concept.hunks.find((h) => h.hunkId === hunkId);
+      if (ref) {
+        return ref;
+      }
+    }
+    return undefined;
+  }
+
   async clear(): Promise<void> {
-    await this.save({ version: 1, concepts: {} });
+    await this.save({ version: 1, concepts: {}, activity: [] });
   }
 
   private async load(): Promise<StoreFile> {
@@ -118,7 +165,7 @@ export class ConceptStore {
         this.data = FileSchema.parse(JSON.parse(await readFile(this.filePath, 'utf8')));
       } catch {
         // Missing or unreadable: start fresh rather than fail the quiz.
-        this.data = { version: 1, concepts: {} };
+        this.data = { version: 1, concepts: {}, activity: [] };
       }
     }
     return this.data;

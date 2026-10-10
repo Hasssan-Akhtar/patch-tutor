@@ -8,9 +8,7 @@ import { getActiveRepository, getStagedDiff } from './git/gitService';
 import type { Hunk } from './git/hunk';
 import { changedLineRange } from './context/hunkLines';
 import { ConceptStore } from './learning/conceptStore';
-import { creditFor } from './learning/concepts';
 import { QuizHistory, type QuizHistoryData } from './learning/quizHistory';
-import { showConceptHunk, WeakSpotsProvider } from './learning/weakSpotsView';
 import { ReportStore } from './learning/reports';
 import { metered } from './llm/metered';
 import type { LLMProvider } from './llm/provider';
@@ -26,6 +24,7 @@ import { HunkHoverProvider } from './ui/hover';
 import { registerInlineCommands } from './ui/inlineCommands';
 import { registerProviderCommands } from './ui/providerCommands';
 import { QuizThreads } from './ui/quizThreads';
+import { DASHBOARD_VIEW_ID, DashboardView } from './ui/dashboard/dashboardView';
 import { StatusBar } from './ui/statusBar';
 import { ThreadRegistry } from './ui/threads';
 
@@ -34,6 +33,7 @@ export interface PatchTutorTestApi {
   threads: ThreadRegistry;
   hunks: HunkService;
   concepts: ConceptStore;
+  dashboard: DashboardView;
   setProviderOverride(provider: LLMProvider | undefined): void;
 }
 
@@ -93,23 +93,21 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     vscode.Uri.joinPath(context.globalStorageUri, 'concepts.json').fsPath,
   );
   context.subscriptions.push(
-    quizzes.onDidAnswer(({ hunk, question, outcome }) => {
-      const credit = creditFor(outcome);
-      if (credit !== undefined) {
-        void concepts.record({
-          concept: question.concept,
-          credit,
-          hunk: {
-            hunkId: hunk.id,
-            filePath: hunk.filePath,
-            line: changedLineRange(hunk).start,
-            diff: hunk.raw,
-          },
-        });
-      }
-    }),
+    quizzes.onDidAnswer(({ hunk, question, outcome }) =>
+      concepts.record({
+        concept: question.concept,
+        outcome,
+        question: question.question,
+        hunk: {
+          hunkId: hunk.id,
+          filePath: hunk.filePath,
+          line: changedLineRange(hunk).start,
+          diff: hunk.raw,
+        },
+      }),
+    ),
   );
-  registerWeakSpots(context, concepts);
+  const dashboard = registerDashboard(context, concepts);
 
   registerProviderCommands(context);
   registerExplainCommands(context, explainService, output);
@@ -130,6 +128,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     threads,
     hunks,
     concepts,
+    dashboard,
     setProviderOverride: (p) => {
       providerOverride = p;
     },
@@ -138,17 +137,21 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
 
 export function deactivate(): void {}
 
-function registerWeakSpots(context: vscode.ExtensionContext, concepts: ConceptStore): void {
-  const provider = new WeakSpotsProvider(concepts);
+function registerDashboard(
+  context: vscode.ExtensionContext,
+  concepts: ConceptStore,
+): DashboardView {
+  const dashboard = new DashboardView(concepts);
   context.subscriptions.push(
-    provider,
-    vscode.window.registerTreeDataProvider('patchTutor.weakSpots', provider),
-    vscode.commands.registerCommand('patchTutor.refreshWeakSpots', () => provider.refresh()),
-    vscode.commands.registerCommand('patchTutor.showConceptHunk', showConceptHunk),
+    dashboard,
+    vscode.window.registerWebviewViewProvider(DASHBOARD_VIEW_ID, dashboard),
+    vscode.commands.registerCommand('patchTutor.showProgress', () =>
+      vscode.commands.executeCommand(`${DASHBOARD_VIEW_ID}.focus`),
+    ),
     vscode.commands.registerCommand('patchTutor.resetProgress', async () => {
       const reset = 'Reset progress';
       const choice = await vscode.window.showWarningMessage(
-        'Reset all Patch Tutor progress? This deletes your concept scores on this machine and cannot be undone.',
+        'Reset all Patch Tutor progress? This deletes your scores and answer history on this machine and cannot be undone.',
         { modal: true },
         reset,
       );
@@ -157,6 +160,7 @@ function registerWeakSpots(context: vscode.ExtensionContext, concepts: ConceptSt
       }
     }),
   );
+  return dashboard;
 }
 
 function registerDevCommands(context: vscode.ExtensionContext, provider: () => LLMProvider): void {

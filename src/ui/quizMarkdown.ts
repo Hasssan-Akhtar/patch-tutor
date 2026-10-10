@@ -81,7 +81,9 @@ export function summaryMarkdown(summary: QuizSummary): string {
   if (toReview.length > 0) {
     parts.push(`📚 **Worth another look:** ${toReview.map((c, i) => pill(c, i)).join(' ')}`);
   }
-  parts.push('🔁 Want another round? Hit **Quiz me** again for fresh questions.');
+  parts.push(
+    '🔁 Want another round? Hit **Quiz me** again for fresh questions. 📊 Your scores and history are in the **Patch Tutor** sidebar.',
+  );
   return parts.join('\n\n');
 }
 
