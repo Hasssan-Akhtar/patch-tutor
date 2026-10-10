@@ -17,7 +17,7 @@ export async function completeStructured<T>(
   request: CompletionRequest,
   schema: z.ZodType<T>,
 ): Promise<StructuredResult<T>> {
-  const first = await provider.complete(request);
+  const first = await provider.complete({ ...request, json: true });
   const firstResult = parseJson(first, schema);
   if (firstResult.ok) {
     return { ok: true, value: firstResult.value, attempts: 1 };
@@ -25,6 +25,7 @@ export async function completeStructured<T>(
 
   const retry = await provider.complete({
     ...request,
+    json: true,
     user:
       request.user +
       '\n\n' +

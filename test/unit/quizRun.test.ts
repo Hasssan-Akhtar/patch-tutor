@@ -182,14 +182,17 @@ describe('chat html', () => {
       "default-src 'none'; img-src vscode-webview://x; style-src vscode-webview://x 'unsafe-inline'; script-src 'nonce-n0nce';",
     );
     expect(html.match(/<script nonce="n0nce">/g)).toHaveLength(1);
-    expect(html).not.toMatch(/https?:\/\//);
+    // Placeholder text may mention URLs; nothing may be loaded from one.
+    expect(html).not.toMatch(/(src|href)\s*=\s*["']?https?:/i);
   });
 });
 
 describe('quiz history', () => {
+  // A fixed clock, so "1h ago" cannot drift to "59m ago" mid-test.
+  const NOW = Date.UTC(2026, 9, 11, 12);
   const transcript = (over: Partial<Transcript> = {}): Transcript => ({
     id: 't1',
-    startedAt: Date.now() - 60 * 60 * 1000,
+    startedAt: NOW - 60 * 60 * 1000,
     updatedAt: Date.now(),
     filePath: 'src/cart.js',
     line: 12,
@@ -205,7 +208,7 @@ describe('quiz history', () => {
   });
 
   it('summarizes a saved quiz', () => {
-    const now = Date.now();
+    const now = NOW;
     expect(transcriptMeta(transcript(), now)).toBe('1/2 correct, 1 partly · 1h ago');
     expect(transcriptMeta(transcript({ done: false }), now)).toMatch(/^In progress/);
     expect(transcriptMeta(transcript({ correct: 0, partly: 0, revealed: 3 }), now)).toMatch(
@@ -214,7 +217,7 @@ describe('quiz history', () => {
   });
 
   it('builds escaped list items and marks the quiz shown in the chat', () => {
-    const item = historyItem(transcript({ questions: ['Why `<T>`?'] }), Date.now(), 't1');
+    const item = historyItem(transcript({ questions: ['Why `<T>`?'] }), NOW, 't1');
 
     expect(item).toMatchObject({ where: 'cart.js:12', current: true });
     expect(item.preview).toBe('Why <code>&lt;T&gt;</code>?');

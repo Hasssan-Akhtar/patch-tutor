@@ -134,6 +134,17 @@
         "title": "Move to chat",
         "category": "Patch Tutor",
         "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "patchTutor.setApiKey",
+        "title": "Set API key",
+        "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.openModelSettings",
+        "title": "Model settings",
+        "category": "Patch Tutor",
+        "icon": "$(gear)"
       }
     ],
     "configuration": {
@@ -142,21 +153,30 @@
         "patchTutor.provider": {
           "type": "string",
           "enum": [
-            "vscodeLm"
+            "vscodeLm",
+            "anthropic",
+            "openaiCompatible",
+            "ollama"
           ],
           "enumItemLabels": [
-            "GitHub Copilot"
+            "GitHub Copilot",
+            "Anthropic",
+            "OpenAI-compatible",
+            "Ollama (local)"
           ],
           "enumDescriptions": [
-            "Copilot models through VS Code. No API key needed."
+            "Copilot models through VS Code. No API key needed.",
+            "Claude models with your Anthropic API key.",
+            "OpenAI, OpenRouter, Groq, LM Studio or any server with the OpenAI chat completions API.",
+            "A model running locally in Ollama. Nothing leaves your machine."
           ],
           "default": "vscodeLm",
-          "markdownDescription": "Which language model provider explains and quizzes your changes. Use **Patch Tutor: Choose provider** to change it."
+          "markdownDescription": "Which language model provider explains and quizzes your changes. Easiest to change from the **\u2699 model settings** in the Patch Tutor chat. API keys are stored in VS Code's secret storage, never here."
         },
         "patchTutor.model": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Model id or family for the provider. Leave empty to use the provider's default. Use **Patch Tutor: Choose model** to pick from the available models."
+          "markdownDescription": "Model id for the provider. Leave empty for the provider's default (Anthropic: `claude-opus-5-5`; Copilot: the first available model). OpenAI-compatible servers and Ollama need a model name."
         },
         "patchTutor.contextTokenBudget": {
           "type": "number",
@@ -181,6 +201,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Softly highlight lines Patch Tutor can explain, and mark them in the scrollbar. Hover a highlighted line for Explain and Quiz me buttons. Colors can be changed with `workbench.colorCustomizations` (`patchTutor.changedLineBackground`, `patchTutor.changedLineRuler`)."
+        },
+        "patchTutor.baseUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Server URL for the **OpenAI-compatible** provider (for example `https://api.openai.com/v1`, `https://openrouter.ai/api/v1` or `http://localhost:1234/v1` for LM Studio) or for **Ollama** (default `http://localhost:11434`). Not used by Copilot or Anthropic."
         }
       }
     },
@@ -293,6 +318,11 @@
         {
           "command": "patchTutor.resetProgress",
           "when": "view == patchTutor.progress",
+          "group": "navigation@1"
+        },
+        {
+          "command": "patchTutor.openModelSettings",
+          "when": "view == patchTutor.chat",
           "group": "navigation@1"
         }
       ]

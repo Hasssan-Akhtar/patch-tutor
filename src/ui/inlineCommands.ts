@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import type { ReportStore } from '../learning/reports';
 import { EXPLAIN_PROMPT_VERSION } from '../services/explainService';
 import type { HunkService } from '../services/hunkService';
-import { getModelKey } from '../services/providerService';
 import type { ChatView } from './chat/chatView';
 import type { InlineComments } from './comments';
 import type { QuizThreads } from './quizThreads';
@@ -18,6 +17,7 @@ export function registerInlineCommands(
   quizzes: QuizThreads,
   reports: ReportStore,
   chat: ChatView,
+  modelKey: () => string,
 ): void {
   // Hover links pass the URI as a string; CodeLens passes a Uri.
   const locate = async (target: HunkTarget, hunkId: string) => {
@@ -74,7 +74,7 @@ export function registerInlineCommands(
           filePath: entry.hunk.filePath,
           hunkId: entry.hunk.id,
           diff: entry.hunk.raw,
-          model: getModelKey(),
+          model: modelKey(),
           explainPromptVersion: EXPLAIN_PROMPT_VERSION,
           comments: thread.comments.map((c) =>
             typeof c.body === 'string' ? c.body : c.body.value,

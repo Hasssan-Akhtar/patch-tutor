@@ -24,6 +24,8 @@ suite('Patch Tutor extension', () => {
       'patchTutor.chooseProvider',
       'patchTutor.chooseModel',
       'patchTutor.testConnection',
+      'patchTutor.setApiKey',
+      'patchTutor.openModelSettings',
       'patchTutor.resetProgress',
       'patchTutor.showProgress',
     ]) {

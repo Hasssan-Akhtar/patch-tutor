@@ -34,12 +34,36 @@ export interface HistoryItem {
   current: boolean;
 }
 
+export interface SettingsProvider {
+  id: string;
+  label: string;
+  detail: string;
+  usesKey: boolean;
+  usesBaseUrl: boolean;
+  defaultBaseUrl: string;
+  defaultModel: string;
+  /** Whether a key is stored; the key itself never reaches the page. */
+  keySaved: boolean;
+  keyUrl?: string;
+}
+
+export interface SettingsPanel {
+  active: { provider: string; model: string; baseUrl: string };
+  providers: SettingsProvider[];
+  presets: readonly { label: string; url: string; needsKey: boolean }[];
+  /** Bumped when saved settings or keys change, so the form re-reads them. */
+  version: number;
+}
+
 export interface ChatState {
-  tab: 'quiz' | 'history';
+  tab: 'quiz' | 'history' | 'settings';
+  /** "Anthropic · claude-opus-5-5", shown as a chip that opens settings. */
+  modelLabel: string;
   quiz?: QuizPanel;
   history: HistoryItem[];
   /** A past quiz opened from History. */
   viewing?: { where: string; meta: string; messages: ChatMessageView[] };
+  settings: SettingsPanel;
 }
 
 export function messageHtml(message: QuizMessage): ChatMessageView {
@@ -97,13 +121,49 @@ export function chatShellHtml(security: ChatPageSecurity): string {
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${security.cspSource}; style-src ${security.cspSource} 'unsafe-inline'; script-src 'nonce-${security.nonce}';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>${STYLES}</style>
+<style>${STYLES}${SETTINGS_STYLES}</style>
 </head>
 <body data-avatar="${escapeHtml(security.avatarUri)}">
 <nav class="tabs" role="tablist">
   <button role="tab" data-action="tab" data-tab="quiz" id="tab-quiz">💬 Quiz</button>
   <button role="tab" data-action="tab" data-tab="history" id="tab-history">🕘 History</button>
+  <button class="chip" data-action="tab" data-tab="settings" id="model-chip" title="Model settings"></button>
 </nav>
+<section id="settings" class="settings" hidden>
+  <h2>Model settings</h2>
+  <p class="muted">Using <strong id="active-label"></strong></p>
+  <div id="provider-list" class="providers" role="radiogroup" aria-label="Provider"></div>
+  <div id="field-url" class="field" hidden>
+    <label for="base-url">Server URL</label>
+    <select id="preset" hidden></select>
+    <input id="base-url" type="url" spellcheck="false" placeholder="https://…">
+  </div>
+  <div id="field-key" class="field" hidden>
+    <label for="api-key">API key</label>
+    <div id="key-saved" class="key-saved" hidden>
+      <span>🔒 Saved in your OS keychain</span>
+      <button class="link" data-action="replaceKey">Replace</button>
+      <button class="link danger" data-action="removeKey">Remove</button>
+    </div>
+    <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your API key">
+    <p class="muted small"><span id="key-optional" hidden>Optional for local servers. </span>Stored only in VS Code's secret storage, never in settings. <button class="link" data-action="openKeyUrl" id="key-link">Get a key</button></p>
+  </div>
+  <div class="field">
+    <label for="model">Model</label>
+    <div class="row">
+      <input id="model" list="model-options" spellcheck="false" placeholder="Default">
+      <button data-action="loadModels" title="Load the models this provider offers">↻</button>
+    </div>
+    <datalist id="model-options"></datalist>
+    <p class="muted small" id="model-status"></p>
+  </div>
+  <div class="actions">
+    <button data-action="test">Test connection</button>
+    <button class="primary" data-action="saveSettings">Save &amp; use</button>
+  </div>
+  <p id="settings-status" class="status" role="status"></p>
+  <p class="muted small">Your code is sent only to the provider you choose here. Patch Tutor has no server and no telemetry.</p>
+</section>
 <div id="bar" class="bar" hidden></div>
 <main id="messages" aria-live="polite"></main>
 <section id="list" class="list" hidden></section>
@@ -127,7 +187,7 @@ export function chatShellHtml(security: ChatPageSecurity): string {
     <button data-action="showChange">Show change</button>
   </div>
 </footer>
-<script nonce="${security.nonce}">${SCRIPT}</script>
+<script nonce="${security.nonce}">${SCRIPT}${SETTINGS_SCRIPT}</script>
 </body>
 </html>`;
 }
@@ -198,6 +258,200 @@ button.link:hover { text-decoration: underline; background: none; }
 .empty p { color: var(--vscode-descriptionForeground); line-height: 1.4; }
 `;
 
+const SETTINGS_STYLES = `
+.chip { margin-left: auto; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; padding: 2px 8px !important; border-radius: 10px !important; border: 1px solid var(--vscode-panel-border, rgba(128,128,128,.35)) !important; color: var(--vscode-descriptionForeground) !important; align-self: center; }
+.chip:hover, .chip.active { color: var(--vscode-foreground) !important; }
+.settings { flex: 1; overflow-y: auto; padding: 4px 12px 12px; }
+.settings h2 { font-size: 14px; margin: 8px 0 2px; }
+.providers { display: grid; gap: 6px; margin: 10px 0; }
+.provider { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--vscode-panel-border, rgba(128,128,128,.35)); background: none; color: inherit; }
+.provider:hover { background: var(--vscode-list-hoverBackground); }
+.provider.selected { border-color: var(--vscode-focusBorder); background: var(--vscode-list-activeSelectionBackground, transparent); color: var(--vscode-list-activeSelectionForeground, inherit); }
+.provider .title { font-weight: 600; }
+.provider .desc { display: block; font-size: 12px; opacity: .8; margin-top: 2px; }
+.field { margin: 10px 0; }
+.field label { display: block; font-weight: 600; margin-bottom: 4px; }
+.field input, .field select { width: 100%; box-sizing: border-box; font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; padding: 4px 6px; }
+.field select { margin-bottom: 6px; }
+.row { display: flex; gap: 6px; }
+.row input { flex: 1; }
+.small { font-size: 11.5px; }
+.key-saved { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; }
+.status { min-height: 1.2em; }
+.status.ok { color: var(--vscode-testing-iconPassed, #1FAA6E); }
+.status.error { color: var(--vscode-errorForeground); }
+.danger { color: var(--vscode-errorForeground) !important; }
+`;
+
+// Settings form: the page owns the inputs while open and re-reads saved
+// values only when they change, so typing is never overwritten. Keys typed
+// here are sent once to the extension and never sent back.
+const SETTINGS_SCRIPT = `
+let form = null;
+let settingsVersion = -1;
+let replacingKey = false;
+
+function providerById(id) { return state.settings.providers.find((p) => p.id === id); }
+
+function renderSettings(force) {
+  const s = state.settings;
+  $('active-label').textContent = state.modelLabel;
+  if (!force && form && settingsVersion === s.version) return;
+  settingsVersion = s.version;
+  form = { provider: s.active.provider, model: s.active.model, baseUrl: s.active.baseUrl };
+  replacingKey = false;
+  $('api-key').value = '';
+  $('model-options').innerHTML = '';
+  $('model-status').textContent = '';
+  drawForm();
+  autoLoadModels();
+}
+
+function drawForm() {
+  const s = state.settings;
+  const info = providerById(form.provider);
+  const list = $('provider-list');
+  list.innerHTML = '';
+  for (const p of s.providers) {
+    const card = document.createElement('button');
+    card.className = 'provider' + (p.id === form.provider ? ' selected' : '');
+    card.setAttribute('role', 'radio');
+    card.setAttribute('aria-checked', String(p.id === form.provider));
+    card.dataset.action = 'pickProvider';
+    card.dataset.id = p.id;
+    const title = document.createElement('span');
+    title.className = 'title';
+    title.textContent = p.label;
+    const desc = document.createElement('span');
+    desc.className = 'desc';
+    desc.textContent = p.detail;
+    card.append(title, desc);
+    list.appendChild(card);
+  }
+
+  show('field-url', info.usesBaseUrl);
+  const preset = $('preset');
+  preset.hidden = form.provider !== 'openaiCompatible';
+  if (!preset.hidden) {
+    preset.innerHTML = '';
+    for (const p of s.presets.concat([{ label: 'Custom URL', url: '' }])) {
+      const option = document.createElement('option');
+      option.value = p.url;
+      option.textContent = p.url ? p.label + ' (' + p.url + ')' : p.label;
+      preset.appendChild(option);
+    }
+    const known = s.presets.some((p) => p.url === (form.baseUrl || info.defaultBaseUrl));
+    preset.value = known ? (form.baseUrl || info.defaultBaseUrl) : '';
+  }
+  $('base-url').value = form.baseUrl || info.defaultBaseUrl;
+
+  show('field-key', info.usesKey);
+  const saved = info.keySaved && !replacingKey;
+  show('key-saved', saved);
+  $('api-key').hidden = saved;
+  const local = form.provider === 'openaiCompatible' && /^http:\\/\\/(localhost|127\\.0\\.0\\.1)/.test($('base-url').value);
+  show('key-optional', local);
+  $('key-link').hidden = !info.keyUrl || local;
+
+  $('model').value = form.model;
+  $('model').placeholder = info.defaultModel ? 'Default: ' + info.defaultModel : 'Pick or type a model';
+}
+
+function readForm() {
+  const info = providerById(form.provider);
+  form.model = $('model').value.trim();
+  form.baseUrl = info.usesBaseUrl ? $('base-url').value.trim() : '';
+  const key = $('api-key').value.trim();
+  return { provider: form.provider, model: form.model, baseUrl: form.baseUrl, key: key || undefined };
+}
+
+function setStatus(text, kind) {
+  const el = $('settings-status');
+  el.textContent = text;
+  el.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+function autoLoadModels() {
+  const info = providerById(form.provider);
+  // Only fetch when it can work without more input from the user.
+  if (!info.usesKey || info.keySaved || form.provider === 'openaiCompatible') {
+    requestModels();
+  } else {
+    $('model-status').textContent = 'Add your API key to load the model list.';
+  }
+}
+
+function requestModels() {
+  $('model-status').textContent = 'Loading models…';
+  vscode.postMessage({ action: 'loadModels', form: readForm() });
+}
+
+function onSettingsMessage(data) {
+  if (data.type === 'models') {
+    if (!form || data.provider !== form.provider) return;
+    const options = $('model-options');
+    options.innerHTML = '';
+    for (const m of data.models) {
+      const option = document.createElement('option');
+      option.value = m.id;
+      if (m.label && m.label !== m.id) option.label = m.label;
+      options.appendChild(option);
+    }
+    $('model-status').textContent = data.error
+      ? data.error
+      : data.models.length + ' model' + (data.models.length === 1 ? '' : 's') + ' available. Pick one or type a name.';
+  } else if (data.type === 'testResult' || data.type === 'saved') {
+    setStatus(data.text, data.ok ? 'ok' : 'error');
+  }
+}
+
+function onSettingsClick(target) {
+  const action = target.dataset.action;
+  if (action === 'pickProvider') {
+    readForm();
+    const info = providerById(target.dataset.id);
+    form = { provider: info.id, model: form.provider === info.id ? form.model : '', baseUrl: form.provider === info.id ? form.baseUrl : '' };
+    replacingKey = false;
+    $('api-key').value = '';
+    $('model-options').innerHTML = '';
+    setStatus('');
+    drawForm();
+    autoLoadModels();
+  } else if (action === 'replaceKey') {
+    replacingKey = true;
+    readForm();
+    drawForm();
+    $('api-key').focus();
+  } else if (action === 'removeKey') {
+    vscode.postMessage({ action: 'removeKey', provider: form.provider });
+  } else if (action === 'openKeyUrl') {
+    vscode.postMessage({ action: 'openKeyUrl', provider: form.provider });
+  } else if (action === 'loadModels') {
+    requestModels();
+  } else if (action === 'test') {
+    setStatus('Testing…');
+    vscode.postMessage({ action: 'test', form: readForm() });
+  } else if (action === 'saveSettings') {
+    setStatus('Saving…');
+    vscode.postMessage({ action: 'saveSettings', form: readForm() });
+    $('api-key').value = '';
+  } else {
+    return false;
+  }
+  return true;
+}
+
+$('preset').addEventListener('change', () => {
+  if ($('preset').value) $('base-url').value = $('preset').value;
+  else { $('base-url').value = ''; $('base-url').focus(); }
+  readForm();
+  drawForm();
+  requestModels();
+});
+$('base-url').addEventListener('change', () => { readForm(); drawForm(); requestModels(); });
+$('api-key').addEventListener('change', () => { if ($('api-key').value.trim()) requestModels(); });
+`;
+
 const SCRIPT = `
 const vscode = acquireVsCodeApi();
 const $ = (id) => document.getElementById(id);
@@ -236,7 +490,15 @@ function render(next) {
   $('tab-quiz').classList.toggle('active', state.tab === 'quiz');
   $('tab-history').classList.toggle('active', state.tab === 'history');
   $('tab-history').textContent = '🕘 History' + (state.history.length ? ' (' + state.history.length + ')' : '');
-  for (const id of ['bar', 'messages', 'list', 'empty', 'composer', 'finished']) show(id, false);
+  $('model-chip').textContent = '⚙ ' + state.modelLabel;
+  $('model-chip').classList.toggle('active', state.tab === 'settings');
+  for (const id of ['bar', 'messages', 'list', 'empty', 'composer', 'finished', 'settings']) show(id, false);
+
+  if (state.tab === 'settings') {
+    show('settings', true);
+    renderSettings(switched);
+    return;
+  }
 
   const bar = $('bar');
   if (state.tab === 'quiz') {
@@ -312,6 +574,7 @@ document.addEventListener('click', (event) => {
   const target = event.target.closest('[data-action]');
   if (!target || target.disabled) return;
   event.preventDefault();
+  if (onSettingsClick(target)) return;
   const { action, tab, id } = target.dataset;
   if (action === 'submit') send();
   else vscode.postMessage({ action, tab, id });
@@ -323,7 +586,9 @@ answer.addEventListener('keydown', (event) => {
   }
 });
 window.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'state') render(event.data.state);
+  if (!event.data) return;
+  if (event.data.type === 'state') render(event.data.state);
+  else onSettingsMessage(event.data);
 });
 vscode.postMessage({ action: 'ready' });
 `;

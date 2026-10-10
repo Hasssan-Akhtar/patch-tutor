@@ -16,7 +16,7 @@ import type { LLMProvider } from './llm/provider';
 import { ExplainService } from './services/explainService';
 import { HunkService } from './services/hunkService';
 import { QuizService } from './services/quizService';
-import { createProvider, getModelKey } from './services/providerService';
+import { ProviderService } from './services/providerService';
 import { HUNK_DOCUMENT_SELECTOR, HunkCodeLensProvider } from './ui/codeLens';
 import { InlineComments } from './ui/comments';
 import { HunkDecorations } from './ui/decorations';
@@ -38,15 +38,19 @@ export interface PatchTutorTestApi {
   dashboard: DashboardView;
   chat: ChatView;
   transcripts: TranscriptStore;
+  providers: ProviderService;
   setProviderOverride(provider: LLMProvider | undefined): void;
 }
 
 export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
   const output = vscode.window.createOutputChannel('Patch Tutor');
   const config = () => vscode.workspace.getConfiguration('patchTutor');
-  const statusBar = new StatusBar(context.globalState);
+  const providers = new ProviderService(context.secrets);
+  const statusBar = new StatusBar(context.globalState, providers);
   let providerOverride: LLMProvider | undefined;
-  const provider = () => metered(providerOverride ?? createProvider(), statusBar.recordUsage);
+  const provider = () => metered(providerOverride ?? providers.create(), statusBar.recordUsage);
+  const modelKey = () => providers.modelKey();
+  context.subscriptions.push(providers);
 
   const buildContext = async (hunk: Hunk, repoRoot: string | undefined, signal?: AbortSignal) =>
     buildHunkContext(
@@ -59,7 +63,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
 
   const explainService = new ExplainService({
     createProvider: provider,
-    modelKey: getModelKey,
+    modelKey,
     buildContext,
     cache: new ExplanationCache(
       vscode.Uri.joinPath(context.globalStorageUri, 'explanations.json').fsPath,
@@ -119,7 +123,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
       }),
     ),
   );
-  const chat = new ChatView(context.extensionUri, transcripts, (previous) =>
+  const chat = new ChatView(context.extensionUri, transcripts, providers, (previous) =>
     quizzes.createRun(previous.hunk, previous.repoRoot),
   );
   context.subscriptions.push(
@@ -128,10 +132,11 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     vscode.window.registerWebviewViewProvider(CHAT_VIEW_ID, chat, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
+    vscode.commands.registerCommand('patchTutor.openModelSettings', () => chat.openSettings()),
   );
   const dashboard = registerDashboard(context, concepts, transcripts);
 
-  registerProviderCommands(context);
+  registerProviderCommands(context, providers);
   registerExplainCommands(context, explainService, output);
   registerInlineCommands(
     context,
@@ -141,10 +146,11 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     quizzes,
     new ReportStore(vscode.Uri.joinPath(context.globalStorageUri, 'reports.jsonl').fsPath),
     chat,
+    modelKey,
   );
 
   if (context.extensionMode === vscode.ExtensionMode.Development) {
-    registerDevCommands(context, provider);
+    registerDevCommands(context, provider, modelKey);
   }
 
   return {
@@ -154,6 +160,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     dashboard,
     chat,
     transcripts,
+    providers,
     setProviderOverride: (p) => {
       providerOverride = p;
     },
@@ -189,11 +196,15 @@ function registerDashboard(
   return dashboard;
 }
 
-function registerDevCommands(context: vscode.ExtensionContext, provider: () => LLMProvider): void {
+function registerDevCommands(
+  context: vscode.ExtensionContext,
+  provider: () => LLMProvider,
+  modelKey: () => string,
+): void {
   const config = () => vscode.workspace.getConfiguration('patchTutor');
   const evalService = new ExplainService({
     createProvider: provider,
-    modelKey: getModelKey,
+    modelKey,
     buildContext: fixtureContext,
     cache: new ExplanationCache(
       vscode.Uri.joinPath(context.globalStorageUri, 'eval-cache.json').fsPath,
@@ -203,7 +214,7 @@ function registerDevCommands(context: vscode.ExtensionContext, provider: () => L
   void vscode.commands.executeCommand('setContext', 'patchTutor.devMode', true);
   context.subscriptions.push(
     vscode.commands.registerCommand('patchTutor.dev.runPromptEvals', () =>
-      runPromptEvals(context.extensionUri, evalService, getModelKey()),
+      runPromptEvals(context.extensionUri, evalService, modelKey()),
     ),
   );
 }
