@@ -6,7 +6,11 @@ import { fixtureContext, runPromptEvals } from './dev/promptEvals';
 import { parseUnifiedDiff } from './git/diffParser';
 import { getActiveRepository, getStagedDiff } from './git/gitService';
 import type { Hunk } from './git/hunk';
+import { changedLineRange } from './context/hunkLines';
+import { ConceptStore } from './learning/conceptStore';
+import { creditFor } from './learning/concepts';
 import { QuizHistory, type QuizHistoryData } from './learning/quizHistory';
+import { showConceptHunk, WeakSpotsProvider } from './learning/weakSpotsView';
 import { ReportStore } from './learning/reports';
 import { metered } from './llm/metered';
 import type { LLMProvider } from './llm/provider';
@@ -29,6 +33,7 @@ import { ThreadRegistry } from './ui/threads';
 export interface PatchTutorTestApi {
   threads: ThreadRegistry;
   hunks: HunkService;
+  concepts: ConceptStore;
   setProviderOverride(provider: LLMProvider | undefined): void;
 }
 
@@ -84,6 +89,28 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     vscode.languages.registerHoverProvider(HUNK_DOCUMENT_SELECTOR, new HunkHoverProvider(hunks)),
     vscode.commands.registerCommand('patchTutor.listStagedHunks', () => listStagedHunks(output)),
   );
+  const concepts = new ConceptStore(
+    vscode.Uri.joinPath(context.globalStorageUri, 'concepts.json').fsPath,
+  );
+  context.subscriptions.push(
+    quizzes.onDidAnswer(({ hunk, question, outcome }) => {
+      const credit = creditFor(outcome);
+      if (credit !== undefined) {
+        void concepts.record({
+          concept: question.concept,
+          credit,
+          hunk: {
+            hunkId: hunk.id,
+            filePath: hunk.filePath,
+            line: changedLineRange(hunk).start,
+            diff: hunk.raw,
+          },
+        });
+      }
+    }),
+  );
+  registerWeakSpots(context, concepts);
+
   registerProviderCommands(context);
   registerExplainCommands(context, explainService, output);
   registerInlineCommands(
@@ -102,6 +129,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
   return {
     threads,
     hunks,
+    concepts,
     setProviderOverride: (p) => {
       providerOverride = p;
     },
@@ -109,6 +137,27 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
 }
 
 export function deactivate(): void {}
+
+function registerWeakSpots(context: vscode.ExtensionContext, concepts: ConceptStore): void {
+  const provider = new WeakSpotsProvider(concepts);
+  context.subscriptions.push(
+    provider,
+    vscode.window.registerTreeDataProvider('patchTutor.weakSpots', provider),
+    vscode.commands.registerCommand('patchTutor.refreshWeakSpots', () => provider.refresh()),
+    vscode.commands.registerCommand('patchTutor.showConceptHunk', showConceptHunk),
+    vscode.commands.registerCommand('patchTutor.resetProgress', async () => {
+      const reset = 'Reset progress';
+      const choice = await vscode.window.showWarningMessage(
+        'Reset all Patch Tutor progress? This deletes your concept scores on this machine and cannot be undone.',
+        { modal: true },
+        reset,
+      );
+      if (choice === reset) {
+        await concepts.clear();
+      }
+    }),
+  );
+}
 
 function registerDevCommands(context: vscode.ExtensionContext, provider: () => LLMProvider): void {
   const config = () => vscode.workspace.getConfiguration('patchTutor');

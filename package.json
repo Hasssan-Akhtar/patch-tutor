@@ -116,6 +116,23 @@
         "command": "patchTutor.openReports",
         "title": "Open wrong-answer reports",
         "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.resetProgress",
+        "title": "Reset progress",
+        "category": "Patch Tutor",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "patchTutor.refreshWeakSpots",
+        "title": "Refresh",
+        "category": "Patch Tutor",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "patchTutor.showConceptHunk",
+        "title": "Show change",
+        "category": "Patch Tutor"
       }
     ],
     "configuration": {
@@ -211,6 +228,14 @@
         {
           "command": "patchTutor.thread.reportWrong",
           "when": "false"
+        },
+        {
+          "command": "patchTutor.refreshWeakSpots",
+          "when": "false"
+        },
+        {
+          "command": "patchTutor.showConceptHunk",
+          "when": "false"
         }
       ],
       "comments/commentThread/title": [
@@ -256,6 +281,18 @@
           "group": "inline@3",
           "when": "commentController == patch-tutor && commentThread =~ /\\bquiz$/"
         }
+      ],
+      "view/title": [
+        {
+          "command": "patchTutor.refreshWeakSpots",
+          "when": "view == patchTutor.weakSpots",
+          "group": "navigation@1"
+        },
+        {
+          "command": "patchTutor.resetProgress",
+          "when": "view == patchTutor.weakSpots",
+          "group": "navigation@2"
+        }
       ]
     },
     "colors": [
@@ -278,6 +315,31 @@
           "highContrast": "#F5C518",
           "highContrastLight": "#8A6D00"
         }
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "patchTutor",
+          "title": "Patch Tutor",
+          "icon": "media/activitybar.svg"
+        }
+      ]
+    },
+    "views": {
+      "patchTutor": [
+        {
+          "id": "patchTutor.weakSpots",
+          "name": "Weak spots",
+          "icon": "media/activitybar.svg",
+          "contextualTitle": "Patch Tutor"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "patchTutor.weakSpots",
+        "contents": "No quiz results yet.\n\nOpen a changed file and click **Quiz me** above a change. Concepts you find tricky show up here, weakest first, so you know what to practise.\n\nEverything stays on this machine."
       }
     ]
   },

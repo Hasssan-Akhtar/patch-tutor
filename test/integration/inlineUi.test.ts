@@ -88,6 +88,7 @@ suite('inline UI', () => {
     const extension = vscode.extensions.getExtension<PatchTutorTestApi>('patch-tutor.patch-tutor');
     assert.ok(extension);
     api = await extension.activate();
+    await api.concepts.clear();
     api.setProviderOverride({
       id: 'vscodeLm',
       name: 'Fake',
@@ -214,6 +215,21 @@ suite('inline UI', () => {
     );
     assert.strictEqual(thread.canReply, false);
     assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
+
+    // Weak spots: correct (1) + revealed (0) for the same concept; the skip is not counted.
+    const [concept, ...others] = await waitFor(async () => {
+      const found = await api.concepts.summaries();
+      return found[0]?.attempts === 2 ? found : undefined;
+    }, 'concept results');
+    assert.strictEqual(others.length, 0);
+    assert.strictEqual(concept?.name, 'array-methods');
+    assert.strictEqual(concept?.score, 0.5);
+    assert.strictEqual(concept?.hunks[0]?.hunkId, hunk.id);
+
+    await vscode.commands.executeCommand('patchTutor.showConceptHunk', concept?.hunks[0]);
+    const shown = vscode.window.activeTextEditor?.document;
+    assert.strictEqual(shown?.languageId, 'diff');
+    assert.ok(shown?.getText().includes(ADDED_LINE));
 
     await vscode.commands.executeCommand('patchTutor.thread.reportWrong', thread);
     assert.match(bodies(thread).at(-1) ?? '', /Thanks for flagging this/);

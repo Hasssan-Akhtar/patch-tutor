@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import type { Hunk } from '../git/hunk';
 import type { QuizHistory } from '../learning/quizHistory';
-import { QuizSession, type QuizSummary } from '../learning/quizSession';
+import { QuizSession, type Outcome } from '../learning/quizSession';
+import type { Question } from '../llm/schemas';
 import type { QuizService } from '../services/quizService';
 import {
   gradeMarkdown,
@@ -15,10 +16,16 @@ import {
 import type { QuizState, ThreadEntry, ThreadRegistry } from './threads';
 
 /** The quiz part of a Patch Tutor thread: questions, answers in the reply box, grades. */
+export interface AnsweredQuestion {
+  hunk: Hunk;
+  question: Question;
+  outcome: Outcome;
+}
+
 export class QuizThreads {
-  private readonly finished = new vscode.EventEmitter<{ hunk: Hunk; summary: QuizSummary }>();
-  /** Fires when a quiz ends, with how each question went. */
-  readonly onDidFinishQuiz = this.finished.event;
+  private readonly answered = new vscode.EventEmitter<AnsweredQuestion>();
+  /** Fires as each question is answered, revealed or skipped, so progress survives an abandoned quiz. */
+  readonly onDidAnswer = this.answered.event;
 
   constructor(
     private readonly threads: ThreadRegistry,
@@ -68,11 +75,11 @@ export class QuizThreads {
       );
       quiz.comments.pop();
       if (result.ok) {
-        quiz.session.record(result.grade.verdict);
-        this.advance(entry, quiz, gradeMarkdown(result.grade, question));
+        this.record(entry, quiz, result.grade.verdict);
+        this.advance(quiz, gradeMarkdown(result.grade, question));
       } else {
-        quiz.session.record('ungraded');
-        this.advance(entry, quiz, ungradedMarkdown(result.raw, question));
+        this.record(entry, quiz, 'ungraded');
+        this.advance(quiz, ungradedMarkdown(result.raw, question));
       }
     } catch (error) {
       if (quiz.controller.signal.aborted) {
@@ -95,7 +102,7 @@ export class QuizThreads {
   }
 
   dispose(): void {
-    this.finished.dispose();
+    this.answered.dispose();
   }
 
   private giveUp(thread: vscode.CommentThread, outcome: 'skipped' | 'revealed'): void {
@@ -105,35 +112,28 @@ export class QuizThreads {
     if (!entry || !quiz || quiz.busy || !question) {
       return;
     }
-    quiz.session.record(outcome);
-    this.advance(
-      entry,
-      quiz,
-      outcome === 'skipped' ? skipMarkdown(question) : revealMarkdown(question),
-    );
+    this.record(entry, quiz, outcome);
+    this.advance(quiz, outcome === 'skipped' ? skipMarkdown(question) : revealMarkdown(question));
     this.threads.render(entry);
+  }
+
+  private record(entry: ThreadEntry, quiz: QuizState, outcome: Outcome): void {
+    const { question } = quiz.session.record(outcome);
+    this.answered.fire({ hunk: entry.hunk, question, outcome });
   }
 
   /**
    * Posts one comment holding the feedback on the last question (if any) and
    * the next question, or the summary when the quiz is over.
    */
-  private advance(entry: ThreadEntry, quiz: QuizState, feedback?: string): void {
+  private advance(quiz: QuizState, feedback?: string): void {
     const next = quiz.session.current;
-    let after: string;
-    let summary: QuizSummary | undefined;
-    if (next) {
-      after = questionMarkdown(next, quiz.session.index, quiz.session.questions.length);
-    } else {
-      summary = quiz.session.summary();
-      after = summaryMarkdown(summary);
-    }
+    const after = next
+      ? questionMarkdown(next, quiz.session.index, quiz.session.questions.length)
+      : summaryMarkdown(quiz.session.summary());
     quiz.comments.push(
       this.threads.tutorComment(feedback ? `${feedback}\n\n---\n\n${after}` : after),
     );
-    if (summary) {
-      this.finished.fire({ hunk: entry.hunk, summary });
-    }
   }
 
   private async run(entry: ThreadEntry): Promise<void> {
@@ -166,7 +166,7 @@ export class QuizThreads {
         quiz.session = new QuizSession(result.questions);
         quiz.diff = result.diff;
         quiz.comments = [];
-        this.advance(entry, quiz);
+        this.advance(quiz);
       } else {
         quiz.comments = [this.threads.tutorComment(quizErrorMarkdown(result.error))];
       }
