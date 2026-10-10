@@ -26,6 +26,11 @@
         "category": "Patch Tutor"
       },
       {
+        "command": "patchTutor.explainStagedChanges",
+        "title": "Explain staged changes",
+        "category": "Patch Tutor"
+      },
+      {
         "command": "patchTutor.chooseProvider",
         "title": "Choose provider",
         "category": "Patch Tutor"
@@ -62,6 +67,20 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Model id or family for the provider. Leave empty to use the provider's default. Use **Patch Tutor: Choose model** to pick from the available models."
+        },
+        "patchTutor.contextTokenBudget": {
+          "type": "number",
+          "default": 6000,
+          "minimum": 1000,
+          "maximum": 100000,
+          "markdownDescription": "Approximate token budget for each explanation request (the diff plus surrounding code and definitions). Lower it to save tokens; context is dropped least-useful first."
+        },
+        "patchTutor.maxOutputTokens": {
+          "type": "number",
+          "default": 1200,
+          "minimum": 200,
+          "maximum": 8000,
+          "markdownDescription": "Approximate maximum length of each explanation, in tokens."
         }
       }
     }
@@ -96,7 +115,8 @@
     "vitest": "^5.0.3"
   },
   "dependencies": {
-    "parse-diff": "^0.12.0"
+    "parse-diff": "^0.12.0",
+    "zod": "^4.6.5"
   },
   "extensionDependencies": [
     "vscode.git"

@@ -8,5 +8,5 @@
     "rootDir": ".",
     "noEmit": false
   },
-  "include": ["test/integration"]
+  "include": ["test/integration", "src/types"]
 }

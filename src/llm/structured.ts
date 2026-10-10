@@ -1,0 +1,63 @@
+import { z } from 'zod';
+import fixJsonPrompt from '../prompts/fix-json.md';
+import { renderTemplate } from '../prompts/render';
+import type { CompletionRequest, LLMProvider } from './provider';
+
+export type StructuredResult<T> =
+  | { ok: true; value: T; attempts: number }
+  | { ok: false; raw: string; error: string; attempts: number };
+
+/**
+ * Asks for JSON and validates it with `schema`. On invalid output it retries
+ * once, telling the model what was wrong; if that fails too, the raw text is
+ * returned so the UI can still show something. Provider errors propagate.
+ */
+export async function completeStructured<T>(
+  provider: LLMProvider,
+  request: CompletionRequest,
+  schema: z.ZodType<T>,
+): Promise<StructuredResult<T>> {
+  const first = await provider.complete(request);
+  const firstResult = parseJson(first, schema);
+  if (firstResult.ok) {
+    return { ok: true, value: firstResult.value, attempts: 1 };
+  }
+
+  const retry = await provider.complete({
+    ...request,
+    user:
+      request.user +
+      '\n\n' +
+      renderTemplate(fixJsonPrompt, { previous: first, error: firstResult.error }),
+  });
+  const retryResult = parseJson(retry, schema);
+  if (retryResult.ok) {
+    return { ok: true, value: retryResult.value, attempts: 2 };
+  }
+  return { ok: false, raw: retry, error: retryResult.error, attempts: 2 };
+}
+
+export function parseJson<T>(
+  text: string,
+  schema: z.ZodType<T>,
+): { ok: true; value: T } | { ok: false; error: string } {
+  let data: unknown;
+  try {
+    data = JSON.parse(extractJson(text));
+  } catch (error) {
+    return { ok: false, error: `Not valid JSON: ${(error as Error).message}` };
+  }
+  const parsed = schema.safeParse(data);
+  return parsed.success
+    ? { ok: true, value: parsed.data }
+    : { ok: false, error: z.prettifyError(parsed.error) };
+}
+
+/** Strips code fences and any prose around the outermost JSON object. */
+export function extractJson(text: string): string {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+  const body = fenced?.[1] ?? text;
+  const start = body.indexOf('{');
+  const end = body.lastIndexOf('}');
+  return start >= 0 && end > start ? body.slice(start, end + 1) : body.trim();
+}

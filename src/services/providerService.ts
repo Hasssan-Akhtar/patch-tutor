@@ -35,6 +35,11 @@ export function getModel(): string {
   return config().get<string>('model', '');
 }
 
+/** Identifies the configured provider and model, for cache keys. */
+export function getModelKey(): string {
+  return `${getProviderId()}:${getModel() || 'default'}`;
+}
+
 export async function setProvider(id: ProviderId): Promise<void> {
   if (id !== getProviderId()) {
     await config().update('provider', id, vscode.ConfigurationTarget.Global);

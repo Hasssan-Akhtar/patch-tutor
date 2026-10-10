@@ -1,13 +1,36 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { ExplanationCache } from './cache/explanationCache';
+import { buildHunkContext } from './context/contextBuilder';
 import { parseUnifiedDiff } from './git/diffParser';
 import { getActiveRepository, getStagedDiff } from './git/gitService';
 import type { Hunk } from './git/hunk';
+import { ExplainService } from './services/explainService';
+import { createProvider, getModelKey } from './services/providerService';
+import { registerExplainCommands } from './ui/explainCommands';
 import { registerProviderCommands } from './ui/providerCommands';
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('Patch Tutor');
   registerProviderCommands(context);
+
+  const config = () => vscode.workspace.getConfiguration('patchTutor');
+  const explainService = new ExplainService({
+    createProvider,
+    modelKey: getModelKey,
+    buildContext: async (hunk, signal) =>
+      buildHunkContext(
+        hunk,
+        (await getActiveRepository()).rootUri,
+        config().get<number>('contextTokenBudget', 6000),
+        signal,
+      ),
+    cache: new ExplanationCache(
+      vscode.Uri.joinPath(context.globalStorageUri, 'explanations.json').fsPath,
+    ),
+    maxOutputTokens: () => config().get<number>('maxOutputTokens', 1200),
+  });
+  registerExplainCommands(context, explainService, output);
 
   context.subscriptions.push(
     output,

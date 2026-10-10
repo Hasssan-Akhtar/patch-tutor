@@ -20,6 +20,7 @@ suite('Patch Tutor extension', () => {
     const commands = await vscode.commands.getCommands(true);
     for (const command of [
       'patchTutor.listStagedHunks',
+      'patchTutor.explainStagedChanges',
       'patchTutor.chooseProvider',
       'patchTutor.chooseModel',
       'patchTutor.testConnection',
