@@ -129,12 +129,20 @@ describe('buildExplainUserMessage', () => {
     const message = buildExplainUserMessage(hunk, 'simple', context);
 
     expect(message).toContain('Depth: simple');
-    expect(message).toContain('File: src/cart.js (modified)');
+    expect(message).toContain(
+      'File: src/cart.js (modified): lines changed inside an existing file',
+    );
     expect(message).toContain('Language: javascript');
     expect(message).toContain('Frameworks: React');
     expect(message).toContain('```diff\n' + hunk.raw);
     expect(message).toContain('### Enclosing code (lines 1-3)');
     expect(message).not.toMatch(/\{\{\w+\}\}/);
+  });
+
+  it('states plainly that a deleted file was deleted as a whole', () => {
+    const message = buildExplainUserMessage({ ...hunk, status: 'deleted' }, 'standard', context);
+
+    expect(message).toContain('(deleted): this whole file was deleted');
   });
 
   it('says when there is no extra context', () => {
@@ -155,6 +163,6 @@ describe('buildExplainUserMessage', () => {
       context,
     );
 
-    expect(message).toContain('File: src/old.js -> src/cart.js (renamed)');
+    expect(message).toContain('File: src/old.js -> src/cart.js (renamed): the file was moved');
   });
 });

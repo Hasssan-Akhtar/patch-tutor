@@ -28,13 +28,13 @@ Before writing `risks`, check the change against each of these and list every on
 - Missing edge cases, input validation and error handling.
 - Security issues.
 
-Each risk is one sentence naming the concrete consequence. When the risk depends on code you cannot see, such as callers, say so ("Callers that use the result as a number will…"). Use an empty list only when none of the checks apply.
+Each risk is one sentence naming the concrete consequence, in your own words. Every risk must be true of the code shown: point to what the diff actually changes, and check the old behavior before claiming something is different (for example, whether a value's type really changed). When a risk depends on code you cannot see, such as callers, say that it depends on them. Use an empty list only when none of the checks apply.
 
 Depth:
 
 - simple: assume a beginner. Avoid jargon, define any term you must use, and include exactly one short everyday analogy in `howItWorks`.
-- standard: assume a working developer. Be direct and technical. No analogies or "like…" comparisons.
-- deep: like standard, plus edge cases, failure modes, complexity and alternatives worth knowing. No analogies.
+- standard: assume a working developer. Be direct and technical. Do not use analogies: no "like", "similar to", "imagine" or "think of" comparisons with everyday things.
+- deep: everything standard requires, plus edge cases, failure modes, complexity and alternatives worth knowing. Do not use analogies.
 
 Concept vocabulary: async-await, promises, callbacks, closures, scope, recursion, error-handling, null-safety, type-narrowing, generics, type-annotations, immutability, mutation, higher-order-functions, array-methods, iteration, string-formatting, regular-expressions, dates-and-time, sql-queries, sql-joins, sql-indexes, transactions, orm, react-hooks, react-effects, react-state, component-props, state-management, dependency-injection, modules-and-imports, caching, memoization, concurrency, race-conditions, input-validation, authentication, security, http-apis, serialization, configuration, environment-variables, logging, testing, mocking, refactoring, naming, performance, off-by-one, edge-cases, data-structures.
 

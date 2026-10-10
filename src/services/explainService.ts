@@ -80,6 +80,13 @@ export class ExplainService {
   }
 }
 
+const STATUS_NOTES: Record<Hunk['status'], string> = {
+  modified: 'lines changed inside an existing file',
+  added: 'this whole file is new',
+  deleted: 'this whole file was deleted',
+  renamed: 'the file was moved; the diff shows edits made alongside the move',
+};
+
 export function buildExplainUserMessage(hunk: Hunk, depth: Depth, context: HunkContext): string {
   const sections = context.sections.map(
     (s) => `### ${s.title}\n\n\`\`\`${context.languageId}\n${s.text}\n\`\`\``,
@@ -88,6 +95,7 @@ export function buildExplainUserMessage(hunk: Hunk, depth: Depth, context: HunkC
     depth,
     filePath: hunk.oldPath ? `${hunk.oldPath} -> ${hunk.filePath}` : hunk.filePath,
     status: hunk.status,
+    statusNote: STATUS_NOTES[hunk.status],
     language: context.languageId,
     frameworks: context.frameworks.length > 0 ? context.frameworks.join(', ') : 'none detected',
     diff: context.diff,

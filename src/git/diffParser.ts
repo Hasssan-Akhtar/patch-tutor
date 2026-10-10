@@ -4,7 +4,7 @@ import type { FileStatus, Hunk } from './hunk';
 import { pairRenames } from './renames';
 
 const DEV_NULL = '/dev/null';
-// git writes this marker after a line with no trailing newline; it is not content.
+// git writes this marker after a line with no trailing newline.
 const NO_NEWLINE_MARKER = '\\ No newline at end of file';
 
 /**
@@ -29,8 +29,9 @@ function parseFiles(diff: string): Hunk[] {
     const status = fileStatus(from, to);
 
     for (const chunk of file.chunks) {
+      // The marker stays in the raw diff (it can be the whole change) but is not a line of code.
+      const body = chunk.changes.map((change) => change.content);
       const lines = chunk.changes.filter((change) => change.content !== NO_NEWLINE_MARKER);
-      const body = lines.map((change) => change.content);
       const added = lines.filter((c) => c.type === 'add').map((c) => c.content.slice(1));
       const removed = lines.filter((c) => c.type === 'del').map((c) => c.content.slice(1));
 

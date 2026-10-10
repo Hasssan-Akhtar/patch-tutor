@@ -1,5 +1,5 @@
 Depth: {{depth}}
-File: {{filePath}} ({{status}})
+File: {{filePath}} ({{status}}): {{statusNote}}
 Language: {{language}}
 Frameworks: {{frameworks}}
 

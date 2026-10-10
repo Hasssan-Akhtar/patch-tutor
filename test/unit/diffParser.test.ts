@@ -83,12 +83,12 @@ describe('parseUnifiedDiff', () => {
     expect(parseUnifiedDiff(fixture('binary.diff'))).toEqual([]);
   });
 
-  it('ignores the "no newline at end of file" marker', () => {
+  it('keeps the "no newline at end of file" marker in raw but not in added lines', () => {
     const [hunk] = parseUnifiedDiff(fixture('no-newline-at-eof.diff'));
 
     expect(hunk?.added).toEqual(['c']);
     expect(hunk?.removed).toEqual(['c']);
-    expect(hunk?.raw).not.toContain('No newline');
+    expect(hunk?.raw.split('\n').at(-1)).toBe('\\ No newline at end of file');
   });
 
   it('returns nothing for an empty diff', () => {
