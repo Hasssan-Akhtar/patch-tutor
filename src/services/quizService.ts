@@ -32,14 +32,19 @@ export class QuizService {
 
   async createQuiz(
     hunk: Hunk,
-    options: { repoRoot?: string; signal?: AbortSignal } = {},
+    options: { repoRoot?: string; signal?: AbortSignal; previousQuestions?: string[] } = {},
   ): Promise<QuizResult> {
     const context = await this.deps.buildContext(hunk, options.repoRoot, options.signal);
+    const previous = options.previousQuestions ?? [];
     const result = await completeStructured(
       this.deps.createProvider(),
       {
         system: quizPrompt,
-        user: renderTemplate(quizUserPrompt, hunkPromptValues(hunk, context)),
+        user: renderTemplate(quizUserPrompt, {
+          ...hunkPromptValues(hunk, context),
+          previousQuestions:
+            previous.length > 0 ? previous.map((q) => `- ${q}`).join('\n') : '(none yet)',
+        }),
         maxTokens: this.deps.maxOutputTokens(),
         signal: options.signal,
       },

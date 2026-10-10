@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { Hunk } from '../git/hunk';
+import type { QuizHistory } from '../learning/quizHistory';
 import { QuizSession, type QuizSummary } from '../learning/quizSession';
 import type { QuizService } from '../services/quizService';
 import {
@@ -22,6 +23,7 @@ export class QuizThreads {
   constructor(
     private readonly threads: ThreadRegistry,
     private readonly quizService: QuizService,
+    private readonly history: QuizHistory,
   ) {}
 
   async start(uri: vscode.Uri, located: { hunk: Hunk; repoRoot: string }): Promise<void> {
@@ -153,9 +155,14 @@ export class QuizThreads {
           this.quizService.createQuiz(entry.hunk, {
             repoRoot: entry.repoRoot,
             signal: quiz.controller.signal,
+            previousQuestions: this.history.previous(entry.hunk.id),
           }),
       );
       if (result.ok) {
+        await this.history.record(
+          entry.hunk.id,
+          result.questions.map((q) => q.question),
+        );
         quiz.session = new QuizSession(result.questions);
         quiz.diff = result.diff;
         quiz.comments = [];

@@ -3,6 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { Hunk } from '../../src/git/hunk';
+import {
+  addToHistory,
+  MAX_HUNKS,
+  MAX_QUESTIONS_PER_HUNK,
+  QuizHistory,
+} from '../../src/learning/quizHistory';
 import { QuizSession, type QuizSummary } from '../../src/learning/quizSession';
 import { ReportStore } from '../../src/learning/reports';
 import type { LLMProvider } from '../../src/llm/provider';
@@ -250,5 +256,66 @@ describe('QuizService', () => {
     expect(request?.user).toContain('It returns 1.');
     expect(request?.user).toContain("## The developer's answer\n\nit returns 1");
     expect(request?.user).toContain('+x');
+  });
+});
+
+describe('quiz history', () => {
+  it('keeps the newest questions per hunk', () => {
+    const many = Array.from({ length: MAX_QUESTIONS_PER_HUNK + 2 }, (_, i) => `q${i}`);
+
+    const data = addToHistory({}, 'h', many);
+
+    expect(data.h).toHaveLength(MAX_QUESTIONS_PER_HUNK);
+    expect(data.h?.at(-1)).toBe(`q${many.length - 1}`);
+  });
+
+  it('drops the least recently quizzed hunks past the limit', () => {
+    let data = {};
+    for (let i = 0; i < MAX_HUNKS + 1; i++) {
+      data = addToHistory(data, `h${i}`, ['q']);
+    }
+    data = addToHistory(data, 'h1', ['again']);
+
+    expect(Object.keys(data)).toHaveLength(MAX_HUNKS);
+    expect(Object.keys(data)).not.toContain('h0');
+    expect(Object.keys(data).at(-1)).toBe('h1');
+  });
+
+  it('reads and records through its storage', async () => {
+    let stored = {};
+    const history = new QuizHistory({ get: () => stored, set: async (d) => void (stored = d) });
+
+    await history.record('h', ['What is x?']);
+
+    expect(history.previous('h')).toEqual(['What is x?']);
+    expect(history.previous('other')).toEqual([]);
+  });
+});
+
+describe('QuizService previous questions', () => {
+  it('lists earlier questions in the prompt so the model avoids repeats', async () => {
+    const complete = vi
+      .fn<LLMProvider['complete']>()
+      .mockResolvedValue(JSON.stringify({ questions: [question(1)] }));
+    const service = new QuizService({
+      createProvider: () => ({ id: 'vscodeLm', name: 'fake', complete }),
+      buildContext: async () => ({
+        languageId: 'javascript',
+        frameworks: [],
+        sections: [],
+        dropped: [],
+        diff: '@@',
+      }),
+      maxOutputTokens: () => 800,
+    });
+    const hunk = { id: 'h', filePath: 'a.js', status: 'modified', raw: '@@' } as Hunk;
+
+    await service.createQuiz(hunk, { previousQuestions: ['Old question?'] });
+    await service.createQuiz(hunk);
+
+    expect(complete.mock.calls[0]?.[0].user).toContain(
+      '## Questions already asked about this change\n\n- Old question?',
+    );
+    expect(complete.mock.calls[1]?.[0].user).toContain('(none yet)');
   });
 });

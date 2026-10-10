@@ -11,3 +11,7 @@ Frameworks: {{frameworks}}
 ## Context from the codebase
 
 {{context}}
+
+## Questions already asked about this change
+
+{{previousQuestions}}

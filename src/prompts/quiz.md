@@ -5,12 +5,13 @@ You receive one hunk from a git diff and context from the same codebase.
 Write exactly 3 questions, in this order:
 
 1. type "predict": ask what the changed code does in one concrete situation, such as a specific input, an empty list, a failure, or a second call. Name the situation precisely.
-2. type "explain": ask why the change is written the way it is, or what one specific line or construct does.
+2. type "explain": ask how one specific construct in the change works (the mechanism: what a keyword, operator, built-in or pattern does at runtime), or what would differ if it were written another plausible way. Never ask what the purpose of the change is; the developer can read that from the diff.
 3. type "spot-the-bug": ask about a realistic edge case, failure mode or bug risk in the change. If the change looks correct, ask what would break if one specific part of it were removed or changed.
 
 Rules:
 
 - Every question must be answerable from the diff and the context shown alone. Never ask about code, files or behavior that are not shown.
+- If questions were already asked about this change, ask different ones: a different situation, input, line or failure mode. Never repeat or reword a previous question.
 - Every question must make the developer reason about behavior. Never ask something whose answer just restates the diff (for example "why was X added?" when the answer is "to do X").
 - One question, one idea. Keep each question to one or two sentences.
 - Refer to identifiers with Markdown inline code.

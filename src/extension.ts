@@ -6,6 +6,7 @@ import { fixtureContext, runPromptEvals } from './dev/promptEvals';
 import { parseUnifiedDiff } from './git/diffParser';
 import { getActiveRepository, getStagedDiff } from './git/gitService';
 import type { Hunk } from './git/hunk';
+import { QuizHistory, type QuizHistoryData } from './learning/quizHistory';
 import { ReportStore } from './learning/reports';
 import { metered } from './llm/metered';
 import type { LLMProvider } from './llm/provider';
@@ -61,7 +62,14 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
   const hunks = new HunkService();
   const threads = new ThreadRegistry(context.extensionUri);
   const comments = new InlineComments(threads, explainService);
-  const quizzes = new QuizThreads(threads, quizService);
+  const quizzes = new QuizThreads(
+    threads,
+    quizService,
+    new QuizHistory({
+      get: () => context.globalState.get<QuizHistoryData>('patchTutor.quizHistory', {}),
+      set: (data) => context.globalState.update('patchTutor.quizHistory', data),
+    }),
+  );
   context.subscriptions.push(
     output,
     statusBar,
