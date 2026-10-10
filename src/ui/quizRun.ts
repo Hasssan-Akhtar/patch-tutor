@@ -1,7 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import type { Hunk } from '../git/hunk';
 import type { QuizHistory } from '../learning/quizHistory';
-import { QuizSession, type Outcome } from '../learning/quizSession';
-import type { Question } from '../llm/schemas';
+import { QuizSession, type Outcome, type QuizSummary } from '../learning/quizSession';
+import type { Grade, Question } from '../llm/schemas';
 import type { QuizService } from '../services/quizService';
 import { escapeModelText } from './markdownStyle';
 import {
@@ -26,6 +27,9 @@ export interface AnsweredQuestion {
   hunk: Hunk;
   question: Question;
   outcome: Outcome;
+  /** What was typed, when the question was answered rather than skipped or revealed. */
+  answer?: string;
+  grade?: Grade;
 }
 
 export interface QuizRunDeps {
@@ -48,6 +52,10 @@ export class QuizRun {
   private diff = '';
   private started = false;
 
+  /** Identifies this quiz in the saved history. */
+  readonly id = randomUUID();
+  readonly startedAt = Date.now();
+
   readonly messages: QuizMessage[] = [];
   busy = false;
 
@@ -65,6 +73,20 @@ export class QuizRun {
   /** True once the summary has been shown, or writing the quiz failed. */
   get done(): boolean {
     return this.started && !this.busy && !this.session.current;
+  }
+
+  /** How many questions the quiz has; 0 until written, or if writing failed. */
+  get questionCount(): number {
+    return this.session.questions.length;
+  }
+
+  /** Questions not answered yet, in order. */
+  get pendingQuestions(): string[] {
+    return this.session.questions.slice(this.session.index).map((q) => q.question);
+  }
+
+  summary(): QuizSummary {
+    return this.session.summary();
   }
 
   get cancelled(): boolean {
@@ -138,13 +160,13 @@ export class QuizRun {
       );
       this.messages.pop();
       if (graded.ok) {
-        this.record(graded.grade.verdict);
+        this.record(graded.grade.verdict, { answer, grade: graded.grade });
         this.messages.push({
           from: 'tutor',
           text: this.withNext(gradeMarkdown(graded.grade, question)),
         });
       } else {
-        this.record('ungraded');
+        this.record('ungraded', { answer });
         this.messages.push({
           from: 'tutor',
           text: this.withNext(ungradedMarkdown(graded.raw, question)),
@@ -188,9 +210,9 @@ export class QuizRun {
     this.changed();
   }
 
-  private record(outcome: Outcome): void {
+  private record(outcome: Outcome, details: { answer?: string; grade?: Grade } = {}): void {
     const { question } = this.session.record(outcome);
-    this.deps.onAnswer({ hunk: this.hunk, question, outcome });
+    this.deps.onAnswer({ hunk: this.hunk, question, outcome, ...details });
   }
 
   /** Feedback on the last question, then the next question or the summary, as one message. */

@@ -1,9 +1,19 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { Hunk } from '../../src/git/hunk';
 import { QuizHistory } from '../../src/learning/quizHistory';
 import type { LLMProvider } from '../../src/llm/provider';
 import { QuizService } from '../../src/services/quizService';
-import { chatShellHtml, messageHtml } from '../../src/ui/chat/chatHtml';
+import { TranscriptStore, type Transcript } from '../../src/learning/transcripts';
+import {
+  chatShellHtml,
+  historyItem,
+  messageHtml,
+  transcriptMeta,
+} from '../../src/ui/chat/chatHtml';
+import { toTranscript } from '../../src/ui/quizThreads';
 import { QuizRun, type AnsweredQuestion } from '../../src/ui/quizRun';
 
 const hunk: Hunk = {
@@ -173,5 +183,64 @@ describe('chat html', () => {
     );
     expect(html.match(/<script nonce="n0nce">/g)).toHaveLength(1);
     expect(html).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe('quiz history', () => {
+  const transcript = (over: Partial<Transcript> = {}): Transcript => ({
+    id: 't1',
+    startedAt: Date.now() - 60 * 60 * 1000,
+    updatedAt: Date.now(),
+    filePath: 'src/cart.js',
+    line: 12,
+    done: true,
+    correct: 1,
+    partly: 1,
+    revealed: 1,
+    skipped: 0,
+    total: 3,
+    questions: ['What does `total([])` return?'],
+    messages: [{ from: 'tutor', text: 'Q' }],
+    ...over,
+  });
+
+  it('summarizes a saved quiz', () => {
+    const now = Date.now();
+    expect(transcriptMeta(transcript(), now)).toBe('1/2 correct, 1 partly · 1h ago');
+    expect(transcriptMeta(transcript({ done: false }), now)).toMatch(/^In progress/);
+    expect(transcriptMeta(transcript({ correct: 0, partly: 0, revealed: 3 }), now)).toMatch(
+      /^Answers peeked/,
+    );
+  });
+
+  it('builds escaped list items and marks the quiz shown in the chat', () => {
+    const item = historyItem(transcript({ questions: ['Why `<T>`?'] }), Date.now(), 't1');
+
+    expect(item).toMatchObject({ where: 'cart.js:12', current: true });
+    expect(item.preview).toBe('Why <code>&lt;T&gt;</code>?');
+  });
+
+  it('records a run as a transcript, newest first, replacing earlier saves of the same quiz', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'patch-tutor-transcripts-'));
+    try {
+      const store = new TranscriptStore(join(dir, 'quizzes.json'));
+      const { run } = setup(replying());
+      await run.start();
+      await store.save(toTranscript(run));
+      await run.submit('answer');
+      await store.save(toTranscript(run));
+      await store.save({ ...transcript({ id: 'older', startedAt: 1 }) });
+
+      const list = await new TranscriptStore(join(dir, 'quizzes.json')).list();
+      expect(list.map((t) => t.id)).toEqual([run.id, 'older']);
+      expect(list[0]).toMatchObject({ filePath: 'src/cart.js', partly: 1, done: false });
+      expect(list[0]?.questions).toEqual(['Question 1?', 'Question 2?', 'Question 3?']);
+      expect(list[0]?.messages.map((m) => m.from)).toEqual(['tutor', 'you', 'tutor']);
+
+      await store.clear();
+      expect(await store.list()).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -1,4 +1,4 @@
-import type { ActivityEntry, ConceptSummary } from '../../learning/conceptStore';
+import type { ActivityEntry, ConceptSummary, HunkRef } from '../../learning/conceptStore';
 import { masteryLevel, type MasteryLevel } from '../../learning/concepts';
 import type { Outcome } from '../../learning/quizSession';
 import { timeAgo, type ProgressStats } from '../../learning/stats';
@@ -7,6 +7,8 @@ export interface DashboardModel {
   stats: ProgressStats;
   concepts: ConceptSummary[];
   activity: ActivityEntry[];
+  /** Saved changes by hunk id, for showing diffs next to activity. */
+  hunks: Record<string, HunkRef>;
   now: number;
 }
 
@@ -17,7 +19,7 @@ export interface PageSecurity {
   cspSource: string;
 }
 
-const RECENT_ACTIVITY = 15;
+export const RECENT_ACTIVITY = 15;
 const PRACTICE_NEXT = 3;
 
 const OUTCOME: Record<Outcome, { icon: string; label: string }> = {
@@ -37,8 +39,9 @@ const LEVEL_LABEL: Record<MasteryLevel, string> = {
 
 /**
  * The whole Progress page. Pure so it can be unit-tested; every value from
- * the store (concept names, questions from the model, file paths) is escaped,
- * and the CSP allows no network access at all.
+ * the store (concept names, model-written questions and feedback, your
+ * answers, file paths, diffs) is escaped, and the CSP allows no network access.
+ * Details expand in place; nothing opens in a new editor unless asked.
  */
 export function dashboardHtml(model: DashboardModel, security: PageSecurity): string {
   const body =
@@ -46,9 +49,8 @@ export function dashboardHtml(model: DashboardModel, security: PageSecurity): st
       ? emptyState()
       : [
           statsSection(model.stats, model.concepts.length),
-          practiceNextSection(model.concepts),
           conceptsSection(model.concepts, model.now),
-          activitySection(model.activity, model.now),
+          activitySection(model.activity, model.hunks, model.now),
           footer(),
         ].join('\n');
 
@@ -91,38 +93,35 @@ function statsSection(stats: ProgressStats, conceptCount: number): string {
 </section>`;
 }
 
-function practiceNextSection(concepts: ConceptSummary[]): string {
-  const next = concepts.filter((c) => masteryLevel(c.score) !== 'solid').slice(0, PRACTICE_NEXT);
-  if (next.length === 0) {
-    return concepts.length > 0
-      ? `<section><h2>Practice next</h2><p class="muted">🏆 Everything you've practised is solid. Quiz a new change to keep going.</p></section>`
-      : '';
-  }
-  return `<section>
-  <h2>Practice next</h2>
-  <p class="muted">Concepts you've found hardest lately.</p>
-  ${next.map((c) => conceptRow(c)).join('\n')}
-</section>`;
-}
-
 function conceptsSection(concepts: ConceptSummary[], now: number): string {
   if (concepts.length === 0) {
     return '';
   }
+  const next = concepts.filter((c) => masteryLevel(c.score) !== 'solid').slice(0, PRACTICE_NEXT);
+  const hint =
+    next.length > 0
+      ? `<p class="hint">🎯 Practice next: ${next.map((c) => `<strong>${escape(c.name)}</strong>`).join(', ')}</p>`
+      : `<p class="hint">🏆 Everything you've practised is solid. Quiz a new change to keep going.</p>`;
   const items = concepts
     .map((c) => {
       const changes = c.hunks
         .map(
-          (h) =>
-            `<li><button class="link" data-action="openHunk" data-hunk="${escape(h.hunkId)}">${escape(h.filePath)}:${h.line}</button> <span class="muted">${timeAgo(h.lastSeen, now)}</span></li>`,
+          (h) => `<details class="change" data-key="${escape(`h:${c.name}:${h.hunkId}`)}">
+  <summary><span class="file">${escape(h.filePath)}:${h.line}</span> <span class="muted">${timeAgo(h.lastSeen, now)}</span></summary>
+  ${diffBlock(h.diff)}
+  ${openFileButton(h.filePath, h.line)}
+</details>`,
         )
-        .join('');
-      return `<details><summary>${conceptRow(c)}</summary><ul class="changes">${changes}</ul></details>`;
+        .join('\n');
+      return `<details class="concept-item" data-key="${escape(`c:${c.name}`)}">
+  <summary>${conceptRow(c)}</summary>
+  <div class="detail"><p class="muted">Changes you were quizzed on:</p>${changes}</div>
+</details>`;
     })
     .join('\n');
   return `<section>
-  <h2>All concepts</h2>
-  <p class="muted">Weakest first. Expand one to see the changes you were quizzed on.</p>
+  <h2>Concepts</h2>
+  ${hint}
   ${items}
 </section>`;
 }
@@ -137,7 +136,11 @@ function conceptRow(concept: ConceptSummary): string {
 </div>`;
 }
 
-function activitySection(activity: ActivityEntry[], now: number): string {
+function activitySection(
+  activity: ActivityEntry[],
+  hunks: Record<string, HunkRef>,
+  now: number,
+): string {
   if (activity.length === 0) {
     return '';
   }
@@ -145,16 +148,57 @@ function activitySection(activity: ActivityEntry[], now: number): string {
     .slice(0, RECENT_ACTIVITY)
     .map((a) => {
       const outcome = OUTCOME[a.outcome];
-      return `<li><button class="activity" data-action="openHunk" data-hunk="${escape(a.hunkId)}" title="${outcome.label}: show the change">
-  <span class="icon">${outcome.icon}</span>
-  <span class="text"><span class="question">${withInlineCode(a.question)}</span><span class="muted">${escape(a.concept)} · ${escape(basename(a.filePath))} · ${timeAgo(a.at, now)}</span></span>
-</button></li>`;
+      const hunk = hunks[a.hunkId];
+      const line = a.line ?? hunk?.line;
+      const facts = [
+        a.answer !== undefined ? fact('✍️ Your answer', escape(a.answer)) : '',
+        a.feedback ? fact(`${outcome.icon} ${outcome.label}`, withInlineCode(a.feedback)) : '',
+        a.expected && a.outcome !== 'correct'
+          ? fact('📝 A good answer', withInlineCode(a.expected))
+          : '',
+        a.remember ? fact('💡 Remember', withInlineCode(a.remember)) : '',
+      ].join('');
+      return `<details class="activity" data-key="${escape(`a:${a.at}:${a.hunkId}`)}">
+  <summary>
+    <span class="icon" title="${outcome.label}">${outcome.icon}</span>
+    <span class="text"><span class="question">${withInlineCode(a.question)}</span><span class="muted">${escape(a.concept)} · ${escape(basename(a.filePath))} · ${timeAgo(a.at, now)}</span></span>
+  </summary>
+  <div class="detail">
+    <p class="full-question">${withInlineCode(a.question)}</p>
+    ${facts}
+    ${hunk ? diffBlock(hunk.diff) : ''}
+    ${line ? openFileButton(a.filePath, line) : ''}
+  </div>
+</details>`;
     })
     .join('\n');
   return `<section>
   <h2>Recent activity</h2>
-  <ul class="activity-list">${rows}</ul>
+  ${rows}
 </section>`;
+}
+
+function fact(label: string, html: string): string {
+  return `<p class="fact"><strong>${label}:</strong> ${html}</p>`;
+}
+
+/** A unified diff with added and removed lines colored. */
+export function diffBlock(diff: string): string {
+  const lines = diff.split('\n').map((line) => {
+    const kind = line.startsWith('+')
+      ? 'add'
+      : line.startsWith('-')
+        ? 'del'
+        : line.startsWith('@@')
+          ? 'hunk'
+          : 'ctx';
+    return `<span class="${kind}">${escape(line) || ' '}</span>`;
+  });
+  return `<pre class="diff">${lines.join('\n')}</pre>`;
+}
+
+function openFileButton(filePath: string, line: number): string {
+  return `<button class="link" data-action="openFile" data-file="${escape(filePath)}" data-line="${line}">Open ${escape(basename(filePath))}:${line}</button>`;
 }
 
 function footer(): string {
@@ -188,11 +232,20 @@ h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin: 
 section:first-child h2 { margin-top: 12px; }
 .muted { color: var(--vscode-descriptionForeground); font-size: 12px; }
 p { margin: 4px 0 8px; line-height: 1.4; }
+.hint { margin-bottom: 6px; }
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tile { border: 1px solid var(--vscode-panel-border, transparent); background: var(--vscode-editorWidget-background); border-radius: 8px; padding: 10px; }
 .tile .value { font-size: 20px; font-weight: 700; }
 .tile .label { color: var(--vscode-descriptionForeground); font-size: 11px; margin-top: 2px; }
-.concept { padding: 4px 0; flex: 1; }
+details { border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.15)); }
+details details { border-bottom: none; }
+summary { list-style: none; cursor: pointer; display: flex; gap: 8px; align-items: flex-start; padding: 6px 2px; border-radius: 6px; }
+summary::-webkit-details-marker { display: none; }
+summary:hover { background: var(--vscode-list-hoverBackground); }
+summary::before { content: '›'; color: var(--vscode-descriptionForeground); transition: transform .1s; width: 8px; flex: none; }
+details[open] > summary::before { transform: rotate(90deg); }
+.detail { padding: 2px 4px 10px 18px; }
+.concept { flex: 1; min-width: 0; }
 .concept-head { display: flex; justify-content: space-between; gap: 8px; }
 .concept .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar { height: 6px; border-radius: 3px; background: var(--vscode-editorWidget-background); margin-top: 4px; overflow: hidden; }
@@ -200,22 +253,23 @@ p { margin: 4px 0 8px; line-height: 1.4; }
 .fill.weak { background: var(--vscode-charts-red, #E5484D); }
 .fill.shaky { background: var(--vscode-charts-yellow, #F5A524); }
 .fill.solid { background: #1FAA6E; }
-details { border-bottom: 1px solid var(--vscode-panel-border, transparent); }
-summary { list-style: none; cursor: pointer; display: flex; }
-summary::-webkit-details-marker { display: none; }
-ul { list-style: none; padding: 0; margin: 0; }
-.changes { padding: 2px 0 8px 8px; }
-.changes li { padding: 2px 0; }
-button { font: inherit; color: inherit; background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
-.link { color: var(--vscode-textLink-foreground); }
-.link:hover { text-decoration: underline; }
-.danger { color: var(--vscode-errorForeground); font-size: 12px; }
-.activity { display: flex; gap: 8px; width: 100%; padding: 6px 4px; border-radius: 6px; }
-.activity:hover { background: var(--vscode-list-hoverBackground); }
+.change summary { padding: 3px 2px; }
+.file { font-family: var(--vscode-editor-font-family); font-size: 12px; }
 .activity .icon { flex: none; }
 .activity .text { display: flex; flex-direction: column; min-width: 0; }
 .activity .question { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.full-question { font-weight: 600; }
+.fact { font-size: 12px; }
 code { font-family: var(--vscode-editor-font-family); font-size: .92em; background: var(--vscode-textCodeBlock-background); border-radius: 3px; padding: 0 3px; }
+pre.diff { margin: 6px 0; padding: 6px 0; overflow-x: auto; background: var(--vscode-textCodeBlock-background); border-radius: 6px; font-family: var(--vscode-editor-font-family); font-size: 11.5px; line-height: 1.45; }
+pre.diff span { display: block; padding: 0 8px; white-space: pre; }
+pre.diff .add { background: var(--vscode-diffEditor-insertedLineBackground, rgba(31,170,110,.18)); }
+pre.diff .del { background: var(--vscode-diffEditor-removedLineBackground, rgba(229,72,77,.18)); }
+pre.diff .hunk { color: var(--vscode-descriptionForeground); }
+button { font: inherit; color: inherit; background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+.link { color: var(--vscode-textLink-foreground); font-size: 12px; }
+.link:hover { text-decoration: underline; }
+.danger { color: var(--vscode-errorForeground); }
 footer { margin-top: 20px; }
 .empty { text-align: center; padding: 24px 8px; }
 .empty-icon { font-size: 32px; }
@@ -223,15 +277,28 @@ footer { margin-top: 20px; }
 `;
 
 // Bar widths are set here because the CSP blocks inline style attributes.
+// Open sections are remembered in the webview state so refreshes keep them open.
 const SCRIPT = `
 const vscode = acquireVsCodeApi();
 for (const fill of document.querySelectorAll('.fill')) {
   fill.style.width = Math.max(Number(fill.dataset.percent), 3) + '%';
 }
+const open = new Set((vscode.getState() || {}).open || []);
+for (const details of document.querySelectorAll('details[data-key]')) {
+  if (open.has(details.dataset.key)) details.open = true;
+  details.addEventListener('toggle', () => {
+    if (details.open) open.add(details.dataset.key); else open.delete(details.dataset.key);
+    vscode.setState({ open: [...open] });
+  });
+}
 document.addEventListener('click', (event) => {
   const target = event.target.closest('[data-action]');
   if (!target) return;
   event.preventDefault();
-  vscode.postMessage({ action: target.dataset.action, hunkId: target.dataset.hunk });
+  vscode.postMessage({
+    action: target.dataset.action,
+    filePath: target.dataset.file,
+    line: Number(target.dataset.line),
+  });
 });
 `;

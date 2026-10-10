@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { PatchTutorTestApi } from '../../src/extension';
 import { getGitApi } from '../../src/git/gitService';
-import { showSavedHunk } from '../../src/ui/dashboard/dashboardView';
 
 // Padding keeps the two working-tree changes more than git's 3 context lines apart,
 // so they become separate hunks.
@@ -90,6 +89,7 @@ suite('inline UI', () => {
     assert.ok(extension);
     api = await extension.activate();
     await api.concepts.clear();
+    await api.transcripts.clear();
     api.setProviderOverride({
       id: 'vscodeLm',
       name: 'Fake',
@@ -241,12 +241,23 @@ suite('inline UI', () => {
     assert.strictEqual(model.stats.streakDays, 1);
     await vscode.commands.executeCommand('patchTutor.showProgress');
 
-    const ref = concept?.hunks[0];
-    assert.ok(ref);
-    await showSavedHunk(ref);
-    const shown = vscode.window.activeTextEditor?.document;
-    assert.strictEqual(shown?.languageId, 'diff');
-    assert.ok(shown?.getText().includes(ADDED_LINE));
+    // Activity keeps what was answered and the change, for showing in place.
+    const graded = model.activity.find((a) => a.outcome === 'correct');
+    assert.strictEqual(graded?.answer, 'It adds the count');
+    assert.strictEqual(graded?.feedback, 'Exactly right.');
+    assert.strictEqual(graded?.expected, 'Answer 1.');
+    assert.ok(model.hunks[hunk.id]?.diff.includes(ADDED_LINE));
+
+    // The finished quiz is saved to History with its whole conversation.
+    const saved = await waitFor(async () => {
+      const list = api.chat.state().history;
+      return list.length > 0 && list[0]?.meta.startsWith('1/1 correct') ? list : undefined;
+    }, 'quiz saved to history');
+    await api.chat.openTranscript(saved[0]?.id ?? '');
+    const viewing = api.chat.state().viewing;
+    assert.strictEqual(viewing?.where, 'cart.js:12');
+    assert.match(viewing?.messages.at(-1)?.html ?? '', /Quiz done!/);
+    api.chat.showTab('quiz');
 
     await vscode.commands.executeCommand('patchTutor.thread.reportWrong', thread);
     assert.match(bodies(thread).at(-1) ?? '', /Thanks for flagging this/);
@@ -278,22 +289,30 @@ suite('inline UI', () => {
     const quiz = api.chat.current;
     assert.ok(quiz);
     const state = api.chat.state();
-    assert.deepStrictEqual(state.header, { file: 'cart.js', line: 12 });
+    assert.strictEqual(state.tab, 'quiz');
+    assert.strictEqual(state.quiz?.file, 'cart.js');
+    assert.strictEqual(state.quiz?.line, 12);
     assert.deepStrictEqual(
-      state.messages.map((m) => m.from),
+      state.quiz?.messages.map((m) => m.from),
       ['tutor', 'you', 'tutor'],
     );
-    assert.match(state.messages[2]?.html ?? '', /Question 2 of 3/);
-    assert.strictEqual(state.canAnswer, true);
+    assert.match(state.quiz?.messages[2]?.html ?? '', /Question 2 of 3/);
+    assert.strictEqual(state.quiz?.canAnswer, true);
+    // History is saved asynchronously; the live quiz is marked "in chat" once it lands.
+    await waitFor(
+      async () =>
+        api.chat.state().history.some((h) => h.id === quiz.id && h.current) ? true : undefined,
+      'live quiz listed in history',
+    );
 
     await api.chat.submit('second');
     quiz.reveal();
-    assert.strictEqual(api.chat.state().done, true);
-    assert.match(api.chat.state().messages.at(-1)?.html ?? '', /Quiz done!/);
+    assert.strictEqual(api.chat.state().quiz?.done, true);
+    assert.match(api.chat.state().quiz?.messages.at(-1)?.html ?? '', /Quiz done!/);
 
     await api.chat.anotherRound();
     assert.notStrictEqual(api.chat.current, quiz);
-    assert.match(api.chat.state().messages.at(-1)?.html ?? '', /Question 1 of 3/);
+    assert.match(api.chat.state().quiz?.messages.at(-1)?.html ?? '', /Question 1 of 3/);
 
     await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
   });

@@ -8,6 +8,7 @@ import { getActiveRepository, getStagedDiff } from './git/gitService';
 import type { Hunk } from './git/hunk';
 import { changedLineRange } from './context/hunkLines';
 import { ConceptStore } from './learning/conceptStore';
+import { TranscriptStore } from './learning/transcripts';
 import { QuizHistory, type QuizHistoryData } from './learning/quizHistory';
 import { ReportStore } from './learning/reports';
 import { metered } from './llm/metered';
@@ -36,6 +37,7 @@ export interface PatchTutorTestApi {
   concepts: ConceptStore;
   dashboard: DashboardView;
   chat: ChatView;
+  transcripts: TranscriptStore;
   setProviderOverride(provider: LLMProvider | undefined): void;
 }
 
@@ -69,6 +71,9 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
   const hunks = new HunkService();
   const threads = new ThreadRegistry(context.extensionUri);
   const comments = new InlineComments(threads, explainService);
+  const transcripts = new TranscriptStore(
+    vscode.Uri.joinPath(context.globalStorageUri, 'quizzes.json').fsPath,
+  );
   const quizzes = new QuizThreads(
     threads,
     quizService,
@@ -76,6 +81,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
       get: () => context.globalState.get<QuizHistoryData>('patchTutor.quizHistory', {}),
       set: (data) => context.globalState.update('patchTutor.quizHistory', data),
     }),
+    transcripts,
   );
   context.subscriptions.push(
     output,
@@ -95,7 +101,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     vscode.Uri.joinPath(context.globalStorageUri, 'concepts.json').fsPath,
   );
   context.subscriptions.push(
-    quizzes.onDidAnswer(({ hunk, question, outcome }) =>
+    quizzes.onDidAnswer(({ hunk, question, outcome, answer, grade }) =>
       concepts.record({
         concept: question.concept,
         outcome,
@@ -106,10 +112,14 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
           line: changedLineRange(hunk).start,
           diff: hunk.raw,
         },
+        answer,
+        feedback: grade?.feedback,
+        expected: question.expected,
+        remember: grade?.remember,
       }),
     ),
   );
-  const chat = new ChatView(context.extensionUri, (previous) =>
+  const chat = new ChatView(context.extensionUri, transcripts, (previous) =>
     quizzes.createRun(previous.hunk, previous.repoRoot),
   );
   context.subscriptions.push(
@@ -119,7 +129,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
       webviewOptions: { retainContextWhenHidden: true },
     }),
   );
-  const dashboard = registerDashboard(context, concepts);
+  const dashboard = registerDashboard(context, concepts, transcripts);
 
   registerProviderCommands(context);
   registerExplainCommands(context, explainService, output);
@@ -143,6 +153,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     concepts,
     dashboard,
     chat,
+    transcripts,
     setProviderOverride: (p) => {
       providerOverride = p;
     },
@@ -154,6 +165,7 @@ export function deactivate(): void {}
 function registerDashboard(
   context: vscode.ExtensionContext,
   concepts: ConceptStore,
+  transcripts: TranscriptStore,
 ): DashboardView {
   const dashboard = new DashboardView(concepts);
   context.subscriptions.push(
@@ -165,12 +177,12 @@ function registerDashboard(
     vscode.commands.registerCommand('patchTutor.resetProgress', async () => {
       const reset = 'Reset progress';
       const choice = await vscode.window.showWarningMessage(
-        'Reset all Patch Tutor progress? This deletes your scores and answer history on this machine and cannot be undone.',
+        'Reset all Patch Tutor progress? This deletes your scores, answer history and past quiz conversations on this machine and cannot be undone.',
         { modal: true },
         reset,
       );
       if (choice === reset) {
-        await concepts.clear();
+        await Promise.all([concepts.clear(), transcripts.clear()]);
       }
     }),
   );

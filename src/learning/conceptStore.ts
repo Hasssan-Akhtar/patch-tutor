@@ -32,6 +32,12 @@ const ActivitySchema = z.object({
   question: z.string(),
   filePath: z.string(),
   hunkId: z.string(),
+  /** Added later; older entries may lack them. */
+  line: z.number().optional(),
+  answer: z.string().optional(),
+  feedback: z.string().optional(),
+  expected: z.string().optional(),
+  remember: z.string().optional(),
 });
 export type ActivityEntry = z.infer<typeof ActivitySchema>;
 
@@ -60,6 +66,10 @@ export interface RecordedAnswer {
   outcome: Outcome;
   question: string;
   hunk: Omit<HunkRef, 'lastSeen'>;
+  answer?: string;
+  feedback?: string;
+  expected?: string;
+  remember?: string;
 }
 
 /**
@@ -112,6 +122,11 @@ export class ConceptStore {
       question: answer.question,
       filePath: answer.hunk.filePath,
       hunkId: answer.hunk.hunkId,
+      line: answer.hunk.line,
+      answer: answer.answer,
+      feedback: answer.feedback,
+      expected: answer.expected,
+      remember: answer.remember,
     };
     data.activity = [entry, ...data.activity].slice(0, MAX_ACTIVITY);
     await this.save(data);

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ActivityEntry, ConceptSummary } from '../../src/learning/conceptStore';
 import { progressStats, timeAgo } from '../../src/learning/stats';
-import { dashboardHtml, type DashboardModel } from '../../src/ui/dashboard/dashboardHtml';
+import {
+  dashboardHtml,
+  diffBlock,
+  type DashboardModel,
+} from '../../src/ui/dashboard/dashboardHtml';
 
 const MIN = 60 * 1000;
 const DAY = 24 * 60 * MIN;
@@ -66,18 +70,26 @@ describe('timeAgo', () => {
 
 describe('dashboardHtml', () => {
   const security = { nonce: 'abc123', cspSource: 'vscode-webview://x' };
+  const ref = {
+    hunkId: 'h1',
+    filePath: 'src/cart.js',
+    line: 4,
+    diff: '@@ -1 +1 @@\n-old\n+new',
+    lastSeen: NOW,
+  };
   const concept = (name: string, score: number): ConceptSummary => ({
     name,
     score,
     attempts: 2,
     correct: 1,
     lastSeen: NOW,
-    hunks: [{ hunkId: 'h1', filePath: 'src/cart.js', line: 4, diff: '+x', lastSeen: NOW }],
+    hunks: [ref],
   });
   const model = (over: Partial<DashboardModel> = {}): DashboardModel => ({
     stats: progressStats({ answeredTotal: 1, attempts: [{ at: NOW, credit: 1 }] }, NOW),
     concepts: [concept('async-await', 0.25), concept('closures', 0.9)],
     activity: [entry({})],
+    hunks: { h1: ref },
     now: NOW,
     ...over,
   });
@@ -89,38 +101,101 @@ describe('dashboardHtml', () => {
     expect(html).not.toContain('Recent activity');
   });
 
-  it('shows stats, practice next, all concepts and recent activity', () => {
+  it('shows stats, one concepts list with a practice hint, and recent activity', () => {
     const html = dashboardHtml(model(), security);
 
     expect(html).toContain('Your progress');
-    expect(html).toContain('Practice next');
-    expect(html).toContain('All concepts');
+    expect(html).toContain('🎯 Practice next: <strong>async-await</strong>');
+    expect(html.match(/<h2>Concepts<\/h2>/g)).toHaveLength(1);
+    expect(html).not.toContain('All concepts');
     expect(html).toContain('Recent activity');
     expect(html).toContain('data-percent="25"');
     expect(html).toContain('class="fill weak"');
-    expect(html).toContain('data-action="openHunk" data-hunk="h1"');
     expect(html).toContain('data-action="reset"');
   });
 
-  it('suggests only concepts that are not solid yet', () => {
+  it('expands activity in place with the answer, feedback, a good answer and the diff', () => {
+    const html = dashboardHtml(
+      model({
+        activity: [
+          entry({
+            outcome: 'partly',
+            answer: 'it waits',
+            feedback: 'Close: `await` pauses.',
+            expected: 'It waits for the promise.',
+            remember: 'Await pauses the function.',
+            line: 4,
+          }),
+        ],
+      }),
+      security,
+    );
+
+    expect(html).toContain('<details class="activity" data-key="a:');
+    expect(html).toContain('✍️ Your answer:</strong> it waits');
+    expect(html).toContain('Close: <code>await</code> pauses.');
+    expect(html).toContain('📝 A good answer:</strong> It waits for the promise.');
+    expect(html).toContain('💡 Remember:</strong> Await pauses the function.');
+    expect(html).toContain('<span class="del">-old</span>');
+    expect(html).toContain('<span class="add">+new</span>');
+    expect(html).toContain('data-action="openFile" data-file="src/cart.js" data-line="4"');
+    // Nothing opens an untitled editor any more.
+    expect(html).not.toContain('openHunk');
+  });
+
+  it('hides "a good answer" when the answer was correct', () => {
+    const html = dashboardHtml(
+      model({ activity: [entry({ outcome: 'correct', expected: 'E.', answer: 'a' })] }),
+      security,
+    );
+
+    expect(html).not.toContain('A good answer');
+  });
+
+  it('lists the changes behind each concept with their diffs', () => {
+    const html = dashboardHtml(model(), security);
+
+    expect(html).toContain('data-key="c:async-await"');
+    expect(html).toContain('data-key="h:async-await:h1"');
+    expect(html).toContain('src/cart.js:4');
+  });
+
+  it('congratulates when every concept is solid', () => {
     const html = dashboardHtml(model({ concepts: [concept('closures', 0.9)] }), security);
 
     expect(html).toContain("Everything you've practised is solid");
-    expect(html).not.toContain('Practice next</h2>\n  <p class="muted">Concepts');
+    expect(html).not.toContain('Practice next');
   });
 
-  it('escapes stored text, including questions written by the model', () => {
+  it('escapes stored text, including model-written questions and your answers', () => {
     const html = dashboardHtml(
       model({
-        activity: [entry({ question: '<img src=https://e.x/t.png onerror=alert(1)>' })],
+        activity: [
+          entry({
+            question: '<img src=https://e.x/t.png onerror=alert(1)>',
+            answer: '<script>x</script>',
+          }),
+        ],
         concepts: [concept('<b>x</b>', 0.1)],
+        hunks: { h1: { ...ref, diff: '+<iframe>' } },
       }),
       security,
     );
 
     expect(html).not.toContain('<img');
     expect(html).not.toContain('<b>x</b>');
+    expect(html).not.toContain('<script>x');
+    expect(html).not.toContain('<iframe>');
     expect(html).toContain('&lt;img src=https://e.x/t.png');
+  });
+
+  it('shows backticked code as code, still escaped', () => {
+    const html = dashboardHtml(
+      model({ activity: [entry({ question: 'How does `await <T>` work?' })] }),
+      security,
+    );
+
+    expect(html).toContain('How does <code>await &lt;T&gt;</code> work?');
   });
 
   it('locks the page down: no network, nonce-only scripts and styles', () => {
@@ -130,22 +205,14 @@ describe('dashboardHtml', () => {
       "default-src 'none'; style-src vscode-webview://x 'nonce-abc123'; script-src 'nonce-abc123';",
     );
     expect(html.match(/<script nonce="abc123">/g)).toHaveLength(1);
-    expect(html).not.toMatch(/https?:\/\//);
+    expect(html).not.toMatch(/https?:\/\/(?!e\.x)/);
   });
 });
 
-describe('withInlineCode in activity', () => {
-  it('shows backticked code as code, still escaped', () => {
-    const html = dashboardHtml(
-      {
-        stats: progressStats({ answeredTotal: 1, attempts: [{ at: NOW, credit: 1 }] }, NOW),
-        concepts: [],
-        activity: [entry({ question: 'How does `await <T>` work?' })],
-        now: NOW,
-      },
-      { nonce: 'n', cspSource: 's' },
+describe('diffBlock', () => {
+  it('colors added, removed and header lines', () => {
+    expect(diffBlock('@@ -1 +1 @@\n x\n-a\n+b')).toBe(
+      '<pre class="diff"><span class="hunk">@@ -1 +1 @@</span>\n<span class="ctx"> x</span>\n<span class="del">-a</span>\n<span class="add">+b</span></pre>',
     );
-
-    expect(html).toContain('How does <code>await &lt;T&gt;</code> work?');
   });
 });
