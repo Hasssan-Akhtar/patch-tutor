@@ -18,7 +18,20 @@ suite('Patch Tutor extension', () => {
     await extension.activate();
 
     const commands = await vscode.commands.getCommands(true);
-    assert.ok(commands.includes('patchTutor.listStagedHunks'));
+    for (const command of [
+      'patchTutor.listStagedHunks',
+      'patchTutor.chooseProvider',
+      'patchTutor.chooseModel',
+      'patchTutor.testConnection',
+    ]) {
+      assert.ok(commands.includes(command), `${command} is not registered`);
+    }
+  });
+
+  test('defaults to the Copilot provider', () => {
+    const config = vscode.workspace.getConfiguration('patchTutor');
+    assert.strictEqual(config.get('provider'), 'vscodeLm');
+    assert.strictEqual(config.get('model'), '');
   });
 });
 

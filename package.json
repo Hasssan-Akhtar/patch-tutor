@@ -24,8 +24,47 @@
         "command": "patchTutor.listStagedHunks",
         "title": "List staged hunks",
         "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.chooseProvider",
+        "title": "Choose provider",
+        "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.chooseModel",
+        "title": "Choose model",
+        "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.testConnection",
+        "title": "Test connection",
+        "category": "Patch Tutor"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Patch Tutor",
+      "properties": {
+        "patchTutor.provider": {
+          "type": "string",
+          "enum": [
+            "vscodeLm"
+          ],
+          "enumItemLabels": [
+            "GitHub Copilot"
+          ],
+          "enumDescriptions": [
+            "Copilot models through VS Code. No API key needed."
+          ],
+          "default": "vscodeLm",
+          "markdownDescription": "Which language model provider explains and quizzes your changes. Use **Patch Tutor: Choose provider** to change it."
+        },
+        "patchTutor.model": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Model id or family for the provider. Leave empty to use the provider's default. Use **Patch Tutor: Choose model** to pick from the available models."
+        }
+      }
+    }
   },
   "scripts": {
     "build": "node esbuild.mjs",

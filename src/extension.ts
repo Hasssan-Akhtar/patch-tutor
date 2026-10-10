@@ -3,9 +3,11 @@ import * as vscode from 'vscode';
 import { parseUnifiedDiff } from './git/diffParser';
 import { getActiveRepository, getStagedDiff } from './git/gitService';
 import type { Hunk } from './git/hunk';
+import { registerProviderCommands } from './ui/providerCommands';
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('Patch Tutor');
+  registerProviderCommands(context);
 
   context.subscriptions.push(
     output,
