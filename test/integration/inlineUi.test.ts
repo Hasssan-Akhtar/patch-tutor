@@ -1,0 +1,149 @@
+import * as assert from 'node:assert';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import * as vscode from 'vscode';
+import type { PatchTutorTestApi } from '../../src/extension';
+import { getGitApi } from '../../src/git/gitService';
+
+// Padding keeps the two working-tree changes more than git's 3 context lines apart,
+// so they become separate hunks.
+const PADDING = Array.from({ length: 8 }, (_, i) => `// note ${i + 1}`);
+const ORIGINAL = [
+  ...PADDING,
+  'function total(items) {',
+  '  let sum = 0;',
+  '  return sum;',
+  '}',
+  '',
+].join('\n');
+const STAGED = ORIGINAL.replace('  let sum = 0;', '  let sum = 0;\n  sum += items.length;');
+const WORKING = STAGED.replace('// note 1', '// totals\n// note 1');
+
+const EXPLANATION = {
+  summary: 'Counts the items.',
+  whatChanged: 'Adds the item count to the sum.',
+  howItWorks: 'Uses `items.length`.',
+  whyItWorks: 'Arrays have a length.',
+  concepts: ['array-methods'],
+  risks: [],
+  depth: 'standard',
+};
+
+function git(cwd: string, ...args: string[]): string {
+  return execFileSync('git', args, { cwd, encoding: 'utf8' });
+}
+
+async function waitFor<T>(read: () => Promise<T | undefined>, what: string): Promise<T> {
+  for (let i = 0; i < 50; i++) {
+    const value = await read();
+    if (value !== undefined) {
+      return value;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(`Timed out waiting for ${what}`);
+}
+
+suite('inline UI', () => {
+  let dir: string;
+  let file: vscode.Uri;
+  let api: PatchTutorTestApi;
+  const requests: string[] = [];
+
+  suiteSetup(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'patch-tutor-inline-'));
+    git(dir, 'init', '-q');
+    git(dir, 'config', 'user.name', 'Test');
+    git(dir, 'config', 'user.email', 'test@example.com');
+    git(dir, 'config', 'commit.gpgsign', 'false');
+    writeFileSync(join(dir, 'cart.js'), ORIGINAL);
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-qm', 'init');
+    writeFileSync(join(dir, 'cart.js'), STAGED);
+    git(dir, 'add', 'cart.js');
+    writeFileSync(join(dir, 'cart.js'), WORKING);
+    file = vscode.Uri.file(join(dir, 'cart.js'));
+
+    const extension = vscode.extensions.getExtension<PatchTutorTestApi>('patch-tutor.patch-tutor');
+    assert.ok(extension);
+    api = await extension.activate();
+    api.setProviderOverride({
+      id: 'vscodeLm',
+      name: 'Fake',
+      complete: async (request) => {
+        requests.push(request.user);
+        return JSON.stringify(EXPLANATION);
+      },
+    });
+    await (await getGitApi()).openRepository(vscode.Uri.file(dir));
+  });
+
+  suiteTeardown(async () => {
+    api.setProviderOverride(undefined);
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('shows CodeLens on the changed lines of the working tree file', async () => {
+    const document = await vscode.workspace.openTextDocument(file);
+    await vscode.window.showTextDocument(document);
+
+    const lenses = await waitFor(async () => {
+      const found = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+        'vscode.executeCodeLensProvider',
+        file,
+      );
+      const ours = found.filter((l) => l.command?.command.startsWith('patchTutor.'));
+      return ours.length >= 2 ? ours : undefined;
+    }, 'Patch Tutor CodeLens');
+
+    // WORKING has two separate changes vs HEAD: the comment on line 1 and the new line 12.
+    const lines = [...new Set(lenses.map((l) => l.range.start.line))].sort((a, b) => a - b);
+    assert.deepStrictEqual(lines, [0, 11]);
+    assert.deepStrictEqual(lenses.map((l) => l.command?.title).slice(0, 2), [
+      '$(lightbulb) Explain this change',
+      '$(mortar-board) Quiz me',
+    ]);
+  });
+
+  test('Explain opens a comment thread on the hunk with the explanation', async () => {
+    const document = await vscode.workspace.openTextDocument(file);
+    const result = await api.hunks.getHunks(document);
+    const hunk = result?.hunks.find((h) => h.added.includes('  sum += items.length;'));
+    assert.ok(hunk, 'expected the sum hunk');
+
+    await vscode.commands.executeCommand('patchTutor.explainHunk', file, hunk.id);
+
+    const [thread, ...others] = api.comments.threadsFor(file);
+    assert.ok(thread, 'expected a thread');
+    assert.strictEqual(others.length, 0);
+    assert.strictEqual(thread.range?.start.line, 11);
+    assert.strictEqual(thread.range?.end.line, 11);
+    assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
+    const body = thread.comments[0]?.body;
+    assert.ok(body instanceof vscode.MarkdownString);
+    assert.match(body.value, /\*\*Counts the items\.\*\*/);
+    assert.ok(requests.some((r) => r.includes('+  sum += items.length;')));
+
+    await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
+    assert.strictEqual(api.comments.threadsFor(file).length, 0);
+  });
+
+  test('finds staged hunks on the index side of the diff editor', async () => {
+    const indexUri = file.with({
+      scheme: 'git',
+      query: JSON.stringify({ path: file.fsPath, ref: '' }),
+    });
+    const document = await vscode.workspace.openTextDocument(indexUri);
+    assert.strictEqual(document.getText(), STAGED);
+
+    const result = await api.hunks.getHunks(document);
+
+    assert.deepStrictEqual(
+      result?.hunks.map((h) => h.added),
+      [['  sum += items.length;']],
+    );
+  });
+});

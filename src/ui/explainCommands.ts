@@ -53,7 +53,10 @@ async function explainStagedChanges(
             message: `Explaining ${index + 1}/${hunks.length}: ${hunk.filePath}`,
             increment: 100 / hunks.length,
           });
-          const result = await service.explainHunk(hunk, 'standard', controller.signal);
+          const result = await service.explainHunk(hunk, 'standard', {
+            signal: controller.signal,
+            repoRoot: repository.rootUri.fsPath,
+          });
           const where =
             hunk.status === 'deleted'
               ? 'deleted file'

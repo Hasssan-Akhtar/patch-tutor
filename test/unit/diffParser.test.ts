@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseUnifiedDiff } from '../../src/git/diffParser';
+import { parseUnifiedDiff, untrackedFileHunks } from '../../src/git/diffParser';
 import { similarity } from '../../src/git/renames';
 
 function fixture(name: string): string {
@@ -171,5 +171,25 @@ describe('similarity', () => {
     expect(similarity('abc', 'abc')).toBe(1);
     expect(similarity('abc', 'xyz')).toBe(0);
     expect(similarity('hello world', 'hello there')).toBeGreaterThan(0.5);
+  });
+});
+
+describe('untrackedFileHunks', () => {
+  it('treats the whole file as one added hunk', () => {
+    const [hunk, ...rest] = untrackedFileHunks('src/new.ts', 'const a = 1;\nexport { a };\n');
+
+    expect(rest).toEqual([]);
+    expect(hunk).toMatchObject({
+      filePath: 'src/new.ts',
+      status: 'added',
+      newStart: 1,
+      newLines: 2,
+      added: ['const a = 1;', 'export { a };'],
+    });
+  });
+
+  it('handles a missing trailing newline and empty files', () => {
+    expect(untrackedFileHunks('a.txt', 'x')[0]?.added).toEqual(['x']);
+    expect(untrackedFileHunks('a.txt', '')).toEqual([]);
   });
 });

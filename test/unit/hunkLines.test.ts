@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { addedLines, extractIdentifiers } from '../../src/context/hunkLines';
+import { addedLines, changedLineRange, extractIdentifiers } from '../../src/context/hunkLines';
 import { parseUnifiedDiff } from '../../src/git/diffParser';
 
 const hunks = parseUnifiedDiff(
@@ -48,5 +48,30 @@ describe('extractIdentifiers', () => {
     ]).map((i) => i.name);
 
     expect(ids).toEqual(['log', 'count']);
+  });
+});
+
+describe('changedLineRange', () => {
+  it('skips leading and trailing context lines', () => {
+    expect(changedLineRange(hunkAt(0))).toEqual({ start: 1, end: 5 });
+    expect(changedLineRange(hunkAt(1))).toEqual({ start: 20, end: 20 });
+  });
+
+  it('points a pure deletion at the line where text was removed', () => {
+    const [hunk] = parseUnifiedDiff(
+      [
+        'diff --git a/a.js b/a.js',
+        '--- a/a.js',
+        '+++ b/a.js',
+        '@@ -1,5 +1,3 @@',
+        ' one',
+        ' two',
+        '-three',
+        '-four',
+        ' five',
+      ].join('\n'),
+    );
+
+    expect(hunk && changedLineRange(hunk)).toEqual({ start: 3, end: 3 });
   });
 });

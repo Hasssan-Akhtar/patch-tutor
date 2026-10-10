@@ -69,3 +69,21 @@ function fileStatus(from: string | undefined, to: string | undefined): FileStatu
 function hunkId(filePath: string, body: string[]): string {
   return createHash('sha1').update(filePath).update('\0').update(body.join('\n')).digest('hex');
 }
+
+/** Hunks for a file git does not track yet: the whole file is one addition. */
+export function untrackedFileHunks(filePath: string, text: string): Hunk[] {
+  if (text.length === 0) {
+    return [];
+  }
+  const lines = text.endsWith('\n') ? text.slice(0, -1).split('\n') : text.split('\n');
+  const diff = [
+    `diff --git a/${filePath} b/${filePath}`,
+    'new file mode 100644',
+    '--- /dev/null',
+    `+++ b/${filePath}`,
+    `@@ -0,0 +1,${lines.length} @@`,
+    ...lines.map((line) => `+${line}`),
+    ...(text.endsWith('\n') ? [] : [NO_NEWLINE_MARKER]),
+  ].join('\n');
+  return parseFiles(diff);
+}

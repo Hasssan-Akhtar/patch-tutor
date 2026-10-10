@@ -51,6 +51,40 @@
         "command": "patchTutor.dev.runPromptEvals",
         "title": "Run prompt evals (dev)",
         "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.explainHunk",
+        "title": "Explain this change",
+        "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.quizHunk",
+        "title": "Quiz me",
+        "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.thread.deeper",
+        "title": "Go deeper",
+        "category": "Patch Tutor",
+        "icon": "$(zoom-in)"
+      },
+      {
+        "command": "patchTutor.thread.simpler",
+        "title": "Simpler",
+        "category": "Patch Tutor",
+        "icon": "$(zoom-out)"
+      },
+      {
+        "command": "patchTutor.thread.quiz",
+        "title": "Quiz me",
+        "category": "Patch Tutor",
+        "icon": "$(mortar-board)"
+      },
+      {
+        "command": "patchTutor.thread.dismiss",
+        "title": "Dismiss",
+        "category": "Patch Tutor",
+        "icon": "$(close)"
       }
     ],
     "configuration": {
@@ -88,6 +122,11 @@
           "minimum": 200,
           "maximum": 8000,
           "markdownDescription": "Approximate maximum length of each explanation, in tokens."
+        },
+        "patchTutor.gutterIcons": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show a lightbulb in the gutter on each changed hunk that Patch Tutor can explain."
         }
       }
     },
@@ -96,6 +135,52 @@
         {
           "command": "patchTutor.dev.runPromptEvals",
           "when": "patchTutor.devMode"
+        },
+        {
+          "command": "patchTutor.explainHunk",
+          "when": "false"
+        },
+        {
+          "command": "patchTutor.quizHunk",
+          "when": "false"
+        },
+        {
+          "command": "patchTutor.thread.deeper",
+          "when": "false"
+        },
+        {
+          "command": "patchTutor.thread.simpler",
+          "when": "false"
+        },
+        {
+          "command": "patchTutor.thread.quiz",
+          "when": "false"
+        },
+        {
+          "command": "patchTutor.thread.dismiss",
+          "when": "false"
+        }
+      ],
+      "comments/commentThread/title": [
+        {
+          "command": "patchTutor.thread.simpler",
+          "group": "inline@1",
+          "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread (standard|deep)$/"
+        },
+        {
+          "command": "patchTutor.thread.deeper",
+          "group": "inline@2",
+          "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread (simple|standard)$/"
+        },
+        {
+          "command": "patchTutor.thread.quiz",
+          "group": "inline@3",
+          "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
+        },
+        {
+          "command": "patchTutor.thread.dismiss",
+          "group": "inline@4",
+          "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
         }
       ]
     }

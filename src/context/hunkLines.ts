@@ -66,3 +66,30 @@ function blankStringsAndComments(text: string): string {
     .replace(/(["'`])(?:\\.|(?!\1).)*\1/g, (s) => ' '.repeat(s.length))
     .replace(/(\/\/|#).*$/, (s) => ' '.repeat(s.length));
 }
+
+/**
+ * First and last lines (1-based, new file) that the hunk actually changes,
+ * ignoring context lines. A pure deletion maps to the line where text was removed.
+ */
+export function changedLineRange(hunk: Hunk): { start: number; end: number } {
+  let line = hunk.newStart;
+  let start: number | undefined;
+  let end: number | undefined;
+  const mark = (at: number) => {
+    start ??= at;
+    end = at;
+  };
+  for (const raw of hunk.raw.split('\n').slice(1)) {
+    if (raw.startsWith('+')) {
+      mark(line);
+      line++;
+    } else if (raw.startsWith('-')) {
+      // Removed text sat just before the current new-file line.
+      mark(Math.max(line, 1));
+    } else if (raw.startsWith(' ')) {
+      line++;
+    }
+  }
+  const fallback = Math.max(hunk.newStart, 1);
+  return { start: start ?? fallback, end: Math.max(end ?? fallback, start ?? fallback) };
+}

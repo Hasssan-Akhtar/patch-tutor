@@ -60,7 +60,8 @@ export async function runPromptEvals(
               return;
             }
             progress.report({ message: `${name}: ${hunk.filePath} (${depth})` });
-            const result = await service.explainHunk(hunk, depth, controller.signal, {
+            const result = await service.explainHunk(hunk, depth, {
+              signal: controller.signal,
               skipCache: true,
             });
             report.push('', ...formatResult(hunk, depth, result));

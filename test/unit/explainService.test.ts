@@ -82,6 +82,22 @@ describe('ExplainService', () => {
     expect(request?.maxTokens).toBe(1200);
   });
 
+  it('passes the repository root to the context builder', async () => {
+    complete.mockResolvedValue(validReply);
+    const buildContext = vi.fn(async () => context);
+    const withRoot = new ExplainService({
+      createProvider: () => ({ id: 'vscodeLm', name: 'fake', complete }),
+      modelKey: () => modelKey,
+      buildContext,
+      cache: new ExplanationCache(join(dir, 'other.json')),
+      maxOutputTokens: () => 1200,
+    });
+
+    await withRoot.explainHunk(hunk, 'standard', { repoRoot: '/repo' });
+
+    expect(buildContext).toHaveBeenCalledWith(hunk, '/repo', undefined);
+  });
+
   it('serves repeat requests from the cache', async () => {
     complete.mockResolvedValue(validReply);
 
@@ -96,7 +112,7 @@ describe('ExplainService', () => {
     complete.mockResolvedValue(validReply);
 
     await service.explainHunk(hunk, 'standard');
-    const fresh = await service.explainHunk(hunk, 'standard', undefined, { skipCache: true });
+    const fresh = await service.explainHunk(hunk, 'standard', { skipCache: true });
 
     expect(fresh).toMatchObject({ kind: 'explanation', fromCache: false });
     expect(complete).toHaveBeenCalledTimes(2);

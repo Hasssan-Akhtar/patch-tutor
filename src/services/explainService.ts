@@ -20,6 +20,13 @@ export interface HunkContext {
   diff: string;
 }
 
+export interface ExplainOptions {
+  signal?: AbortSignal;
+  /** File system path of the hunk's repository, used to find context. */
+  repoRoot?: string;
+  skipCache?: boolean;
+}
+
 export type ExplainResult =
   | { kind: 'explanation'; explanation: Explanation; fromCache: boolean }
   | { kind: 'raw'; text: string; error: string };
@@ -28,7 +35,11 @@ export interface ExplainDeps {
   createProvider: () => LLMProvider;
   /** Identifies the provider and model for cache keys. */
   modelKey: () => string;
-  buildContext: (hunk: Hunk, signal?: AbortSignal) => Promise<HunkContext>;
+  buildContext: (
+    hunk: Hunk,
+    repoRoot: string | undefined,
+    signal?: AbortSignal,
+  ) => Promise<HunkContext>;
   cache: ExplanationCache;
   maxOutputTokens: () => number;
 }
@@ -46,21 +57,21 @@ export class ExplainService {
   async explainHunk(
     hunk: Hunk,
     depth: Depth,
-    signal?: AbortSignal,
-    options: { skipCache?: boolean } = {},
+    options: ExplainOptions = {},
   ): Promise<ExplainResult> {
+    const { signal, repoRoot, skipCache } = options;
     const key = cacheKey({
       hunkId: hunk.id,
       depth,
       model: this.deps.modelKey(),
       promptVersion: EXPLAIN_PROMPT_VERSION,
     });
-    const cached = options.skipCache ? undefined : await this.deps.cache.get(key);
+    const cached = skipCache ? undefined : await this.deps.cache.get(key);
     if (cached) {
       return { kind: 'explanation', explanation: cached, fromCache: true };
     }
 
-    const context = await this.deps.buildContext(hunk, signal);
+    const context = await this.deps.buildContext(hunk, repoRoot, signal);
     const result = await completeStructured(
       this.deps.createProvider(),
       {
