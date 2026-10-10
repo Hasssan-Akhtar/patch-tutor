@@ -1,0 +1,22 @@
+diff --git a/cart.js b/cart.js
+index 9ec9739..3d50d28 100644
+--- a/cart.js
++++ b/cart.js
+@@ -1,7 +1,8 @@
+-export function total(items) {
++export async function total(items) {
++  if (items.length === 0) return 0;
+   let sum = 0;
+   for (const item of items) {
+-    sum += item.price;
++    sum += await item.price();
+   }
+   return sum;
+ }
+@@ -16,5 +17,5 @@ export function label(x) {
+ 
+ 
+ export function fmt(n) {
+-  return n.toFixed(2);
++  return `$${n.toFixed(2)}`;
+ }

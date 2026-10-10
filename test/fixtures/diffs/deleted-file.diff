@@ -1,0 +1,8 @@
+diff --git a/legacy.txt b/legacy.txt
+deleted file mode 100644
+index 43bbe1e..0000000
+--- a/legacy.txt
++++ /dev/null
+@@ -1,2 +0,0 @@
+-old line 1
+-old line 2

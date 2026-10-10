@@ -1,0 +1,8 @@
+diff --git a/newfile.js b/newfile.js
+new file mode 100644
+index 0000000..c0c2670
+--- /dev/null
++++ b/newfile.js
+@@ -0,0 +1,2 @@
++const x = 1;
++module.exports = x;
