@@ -85,6 +85,21 @@
         "title": "Dismiss",
         "category": "Patch Tutor",
         "icon": "$(close)"
+      },
+      {
+        "command": "patchTutor.quiz.submit",
+        "title": "Submit answer",
+        "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.quiz.showAnswer",
+        "title": "Show answer",
+        "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.quiz.skip",
+        "title": "Skip",
+        "category": "Patch Tutor"
       }
     ],
     "configuration": {
@@ -164,18 +179,30 @@
         {
           "command": "patchTutor.thread.dismiss",
           "when": "false"
+        },
+        {
+          "command": "patchTutor.quiz.submit",
+          "when": "false"
+        },
+        {
+          "command": "patchTutor.quiz.showAnswer",
+          "when": "false"
+        },
+        {
+          "command": "patchTutor.quiz.skip",
+          "when": "false"
         }
       ],
       "comments/commentThread/title": [
         {
           "command": "patchTutor.thread.simpler",
           "group": "inline@1",
-          "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread (standard|deep)$/"
+          "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread (standard|deep)\\b/"
         },
         {
           "command": "patchTutor.thread.deeper",
           "group": "inline@2",
-          "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread (simple|standard)$/"
+          "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread (simple|standard)\\b/"
         },
         {
           "command": "patchTutor.thread.quiz",
@@ -186,6 +213,23 @@
           "command": "patchTutor.thread.dismiss",
           "group": "inline@4",
           "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "patchTutor.quiz.submit",
+          "group": "inline@1",
+          "when": "commentController == patch-tutor && commentThread =~ /\\bquiz$/"
+        },
+        {
+          "command": "patchTutor.quiz.showAnswer",
+          "group": "inline@2",
+          "when": "commentController == patch-tutor && commentThread =~ /\\bquiz$/"
+        },
+        {
+          "command": "patchTutor.quiz.skip",
+          "group": "inline@3",
+          "when": "commentController == patch-tutor && commentThread =~ /\\bquiz$/"
         }
       ]
     },

@@ -10,6 +10,7 @@ import { metered } from './llm/metered';
 import type { LLMProvider } from './llm/provider';
 import { ExplainService } from './services/explainService';
 import { HunkService } from './services/hunkService';
+import { QuizService } from './services/quizService';
 import { createProvider, getModelKey } from './services/providerService';
 import { HUNK_DOCUMENT_SELECTOR, HunkCodeLensProvider } from './ui/codeLens';
 import { InlineComments } from './ui/comments';
@@ -18,11 +19,13 @@ import { registerExplainCommands } from './ui/explainCommands';
 import { HunkHoverProvider } from './ui/hover';
 import { registerInlineCommands } from './ui/inlineCommands';
 import { registerProviderCommands } from './ui/providerCommands';
+import { QuizThreads } from './ui/quizThreads';
 import { StatusBar } from './ui/statusBar';
+import { ThreadRegistry } from './ui/threads';
 
 /** Returned from activate() so integration tests can inspect state and swap the provider. */
 export interface PatchTutorTestApi {
-  comments: InlineComments;
+  threads: ThreadRegistry;
   hunks: HunkService;
   setProviderOverride(provider: LLMProvider | undefined): void;
 }
@@ -34,29 +37,36 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
   let providerOverride: LLMProvider | undefined;
   const provider = () => metered(providerOverride ?? createProvider(), statusBar.recordUsage);
 
+  const buildContext = async (hunk: Hunk, repoRoot: string | undefined, signal?: AbortSignal) =>
+    buildHunkContext(
+      hunk,
+      repoRoot ? vscode.Uri.file(repoRoot) : (await getActiveRepository()).rootUri,
+      config().get<number>('contextTokenBudget', 6000),
+      signal,
+    );
+  const maxOutputTokens = () => config().get<number>('maxOutputTokens', 1200);
+
   const explainService = new ExplainService({
     createProvider: provider,
     modelKey: getModelKey,
-    buildContext: async (hunk, repoRoot, signal) =>
-      buildHunkContext(
-        hunk,
-        repoRoot ? vscode.Uri.file(repoRoot) : (await getActiveRepository()).rootUri,
-        config().get<number>('contextTokenBudget', 6000),
-        signal,
-      ),
+    buildContext,
     cache: new ExplanationCache(
       vscode.Uri.joinPath(context.globalStorageUri, 'explanations.json').fsPath,
     ),
-    maxOutputTokens: () => config().get<number>('maxOutputTokens', 1200),
+    maxOutputTokens,
   });
+  const quizService = new QuizService({ createProvider: provider, buildContext, maxOutputTokens });
 
   const hunks = new HunkService();
-  const comments = new InlineComments(context.extensionUri, explainService);
+  const threads = new ThreadRegistry(context.extensionUri);
+  const comments = new InlineComments(threads, explainService);
+  const quizzes = new QuizThreads(threads, quizService);
   context.subscriptions.push(
     output,
     statusBar,
     hunks,
-    comments,
+    threads,
+    quizzes,
     new HunkDecorations(context.extensionUri, hunks),
     vscode.languages.registerCodeLensProvider(
       HUNK_DOCUMENT_SELECTOR,
@@ -67,14 +77,14 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
   );
   registerProviderCommands(context);
   registerExplainCommands(context, explainService, output);
-  registerInlineCommands(context, hunks, comments);
+  registerInlineCommands(context, hunks, threads, comments, quizzes);
 
   if (context.extensionMode === vscode.ExtensionMode.Development) {
     registerDevCommands(context, provider);
   }
 
   return {
-    comments,
+    threads,
     hunks,
     setProviderOverride: (p) => {
       providerOverride = p;

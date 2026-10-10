@@ -99,11 +99,15 @@ const STATUS_NOTES: Record<Hunk['status'], string> = {
 };
 
 export function buildExplainUserMessage(hunk: Hunk, depth: Depth, context: HunkContext): string {
+  return renderTemplate(explainUserPrompt, { depth, ...hunkPromptValues(hunk, context) });
+}
+
+/** Template values describing a hunk and its context, shared by the explain and quiz prompts. */
+export function hunkPromptValues(hunk: Hunk, context: HunkContext): Record<string, string> {
   const sections = context.sections.map(
     (s) => `### ${s.title}\n\n\`\`\`${context.languageId}\n${s.text}\n\`\`\``,
   );
-  return renderTemplate(explainUserPrompt, {
-    depth,
+  return {
     filePath: hunk.oldPath ? `${hunk.oldPath} -> ${hunk.filePath}` : hunk.filePath,
     status: hunk.status,
     statusNote: STATUS_NOTES[hunk.status],
@@ -111,5 +115,5 @@ export function buildExplainUserMessage(hunk: Hunk, depth: Depth, context: HunkC
     frameworks: context.frameworks.length > 0 ? context.frameworks.join(', ') : 'none detected',
     diff: context.diff,
     context: sections.length > 0 ? sections.join('\n\n') : '(no additional context available)',
-  });
+  };
 }

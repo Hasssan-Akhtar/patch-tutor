@@ -24,6 +24,22 @@ const ADDED_LINE = `  sum += items.length; // run ${RUN}`;
 const STAGED = ORIGINAL.replace('  let sum = 0;', `  let sum = 0;\n${ADDED_LINE}`);
 const WORKING = STAGED.replace('// note 1', '// totals\n// note 1');
 
+const QUIZ = {
+  questions: [1, 2, 3].map((n) => ({
+    id: `q${n}`,
+    type: 'predict',
+    question: `Question number ${n}?`,
+    concept: 'array-methods',
+    expected: `Answer ${n}.`,
+  })),
+};
+const GRADE = {
+  verdict: 'correct',
+  feedback: 'Exactly right.',
+  missed: [],
+  remember: 'Arrays know their length.',
+};
+
 const EXPLANATION = {
   summary: 'Counts the items.',
   whatChanged: 'Adds the item count to the sum.',
@@ -77,6 +93,12 @@ suite('inline UI', () => {
       name: 'Fake',
       complete: async (request) => {
         requests.push(request.user);
+        if (request.system.includes('grading')) {
+          return JSON.stringify(GRADE);
+        }
+        if (request.system.includes('writing a short quiz')) {
+          return JSON.stringify(QUIZ);
+        }
         return JSON.stringify(EXPLANATION);
       },
     });
@@ -138,7 +160,7 @@ suite('inline UI', () => {
 
     await vscode.commands.executeCommand('patchTutor.explainHunk', file, hunk.id);
 
-    const [thread, ...others] = api.comments.threadsFor(file);
+    const [thread, ...others] = api.threads.threadsFor(file);
     assert.ok(thread, 'expected a thread');
     assert.strictEqual(others.length, 0);
     assert.strictEqual(thread.range?.start.line, 11);
@@ -151,7 +173,47 @@ suite('inline UI', () => {
     assert.ok(requests.some((r) => r.includes(`+${ADDED_LINE}`)));
 
     await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
-    assert.strictEqual(api.comments.threadsFor(file).length, 0);
+    assert.strictEqual(api.threads.threadsFor(file).length, 0);
+  });
+
+  test('Quiz me asks questions one at a time, grades answers and summarizes', async () => {
+    const document = await vscode.workspace.openTextDocument(file);
+    const hunk = (await api.hunks.getHunks(document))?.hunks.find((h) =>
+      h.added.includes(ADDED_LINE),
+    );
+    assert.ok(hunk);
+    const bodies = (thread: vscode.CommentThread) =>
+      thread.comments.map((c) => (c.body instanceof vscode.MarkdownString ? c.body.value : c.body));
+
+    await vscode.commands.executeCommand('patchTutor.explainHunk', file, hunk.id);
+    await vscode.commands.executeCommand('patchTutor.quizHunk', file, hunk.id);
+
+    const [thread] = api.threads.threadsFor(file);
+    assert.ok(thread);
+    assert.strictEqual(thread.contextValue, 'patchTutorThread standard quiz');
+    assert.strictEqual(thread.canReply, true);
+    assert.match(bodies(thread)[0] ?? '', /TL;DR/, 'explanation stays first');
+    assert.match(bodies(thread).at(-1) ?? '', /Question 1 of 3/);
+
+    await vscode.commands.executeCommand('patchTutor.quiz.submit', {
+      thread,
+      text: 'It adds the count',
+    });
+    assert.strictEqual(thread.comments.at(-3)?.author.name, 'You');
+    assert.match(bodies(thread).at(-2) ?? '', /Nailed it!/);
+    assert.match(bodies(thread).at(-1) ?? '', /Question 2 of 3/);
+    assert.ok(requests.some((r) => r.includes('It adds the count') && r.includes('Answer 1.')));
+
+    await vscode.commands.executeCommand('patchTutor.quiz.showAnswer', { thread, text: '' });
+    assert.match(bodies(thread).at(-2) ?? '', /Answer 2\./);
+    assert.match(bodies(thread).at(-1) ?? '', /Question 3 of 3/);
+
+    await vscode.commands.executeCommand('patchTutor.quiz.skip', { thread, text: '' });
+    assert.match(bodies(thread).at(-1) ?? '', /Quiz done!.*1\/3 correct/s);
+    assert.strictEqual(thread.canReply, false);
+    assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
+
+    await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
   });
 
   test('finds staged hunks on the index side of the diff editor', async () => {

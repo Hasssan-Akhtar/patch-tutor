@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Explanation } from '../../src/llm/schemas';
 import {
-  escapeModelText,
   explanationMarkdown,
   rawExplanationMarkdown,
   threadTitle,
 } from '../../src/ui/explanationMarkdown';
+import { escapeModelText } from '../../src/ui/markdownStyle';
 
 const explanation: Explanation = {
   summary: 'Makes `total` async.',
