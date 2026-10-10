@@ -3,6 +3,7 @@ import type { ReportStore } from '../learning/reports';
 import { EXPLAIN_PROMPT_VERSION } from '../services/explainService';
 import type { HunkService } from '../services/hunkService';
 import { getModelKey } from '../services/providerService';
+import type { ChatView } from './chat/chatView';
 import type { InlineComments } from './comments';
 import type { QuizThreads } from './quizThreads';
 import type { ThreadRegistry } from './threads';
@@ -16,6 +17,7 @@ export function registerInlineCommands(
   comments: InlineComments,
   quizzes: QuizThreads,
   reports: ReportStore,
+  chat: ChatView,
 ): void {
   // Hover links pass the URI as a string; CodeLens passes a Uri.
   const locate = async (target: HunkTarget, hunkId: string) => {
@@ -99,6 +101,18 @@ export function registerInlineCommands(
     ),
     vscode.commands.registerCommand('patchTutor.quiz.showAnswer', (reply: vscode.CommentReply) =>
       quizzes.showAnswer(reply),
+    ),
+    // From the reply box the argument is a CommentReply; from the title bar, the thread.
+    vscode.commands.registerCommand(
+      'patchTutor.quiz.moveToChat',
+      async (target: vscode.CommentReply | vscode.CommentThread) => {
+        const thread = 'thread' in target ? target.thread : target;
+        const entry = threads.find(thread);
+        const quiz = entry && threads.moveQuizToChat(entry);
+        if (quiz) {
+          await chat.adopt(quiz, thread.uri);
+        }
+      },
     ),
   );
 }

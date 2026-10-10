@@ -128,6 +128,12 @@
         "title": "Show progress",
         "category": "Patch Tutor",
         "icon": "$(graph)"
+      },
+      {
+        "command": "patchTutor.quiz.moveToChat",
+        "title": "Move to chat",
+        "category": "Patch Tutor",
+        "icon": "$(comment-discussion)"
       }
     ],
     "configuration": {
@@ -223,6 +229,10 @@
         {
           "command": "patchTutor.thread.reportWrong",
           "when": "false"
+        },
+        {
+          "command": "patchTutor.quiz.moveToChat",
+          "when": "false"
         }
       ],
       "comments/commentThread/title": [
@@ -242,13 +252,18 @@
           "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
         },
         {
+          "command": "patchTutor.quiz.moveToChat",
+          "when": "commentController == patch-tutor && commentThread =~ /\\bquiz$/",
+          "group": "inline@4"
+        },
+        {
           "command": "patchTutor.thread.reportWrong",
-          "group": "inline@4",
+          "group": "inline@5",
           "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
         },
         {
           "command": "patchTutor.thread.dismiss",
-          "group": "inline@5",
+          "group": "inline@6",
           "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
         }
       ],
@@ -266,6 +281,11 @@
         {
           "command": "patchTutor.quiz.skip",
           "group": "inline@3",
+          "when": "commentController == patch-tutor && commentThread =~ /\\bquiz$/"
+        },
+        {
+          "command": "patchTutor.quiz.moveToChat",
+          "group": "inline@4",
           "when": "commentController == patch-tutor && commentThread =~ /\\bquiz$/"
         }
       ],
@@ -312,6 +332,13 @@
       "patchTutor": [
         {
           "type": "webview",
+          "id": "patchTutor.chat",
+          "name": "Quiz chat",
+          "icon": "media/activitybar.svg",
+          "contextualTitle": "Patch Tutor"
+        },
+        {
+          "type": "webview",
           "id": "patchTutor.progress",
           "name": "Progress",
           "icon": "media/activitybar.svg",
@@ -351,6 +378,7 @@
   },
   "dependencies": {
     "diff": "^9.0.0",
+    "markdown-it": "^15.0.2",
     "parse-diff": "^0.12.0",
     "zod": "^4.6.5"
   },

@@ -1,19 +1,9 @@
 import * as vscode from 'vscode';
 import type { Hunk } from '../git/hunk';
-import type { QuizSession } from '../learning/quizSession';
 import { ProviderError } from '../llm/provider';
 import type { Depth } from '../llm/schemas';
 import { hunkRange } from './hunkRange';
-
-export interface QuizState {
-  session: QuizSession;
-  /** The diff the questions were written from, sent again for grading. */
-  diff: string;
-  comments: vscode.Comment[];
-  controller: AbortController;
-  /** True while waiting for the model; replies are ignored meanwhile. */
-  busy: boolean;
-}
+import type { QuizMessage, QuizRun } from './quizRun';
 
 export interface ThreadEntry {
   thread: vscode.CommentThread;
@@ -23,10 +13,15 @@ export interface ThreadEntry {
   title: string;
   explanation?: vscode.Comment;
   explainController?: AbortController;
-  quiz?: QuizState;
+  quiz?: QuizRun;
+  /** Set when the quiz was moved to the chat view; the thread then shows a pointer instead. */
+  quizInChat?: boolean;
   /** Short messages appended after everything else, e.g. thanks for a report. */
   notes?: vscode.Comment[];
 }
+
+const MOVED_TO_CHAT =
+  '💬 **This quiz continues in the Patch Tutor chat** in the sidebar. Your answers so far moved with it.';
 
 export const DEFAULT_TITLE = '💡 Patch Tutor';
 
@@ -84,17 +79,54 @@ export class ThreadRegistry implements vscode.Disposable {
   /** Writes an entry's comments, title, buttons and reply box to its thread. */
   render(entry: ThreadEntry): void {
     const { thread, quiz } = entry;
-    const quizOpen =
-      !!quiz && !quiz.session.done && !quiz.busy && quiz.session.questions.length > 0;
+    const inThread = !!quiz && !entry.quizInChat;
+    // " quiz" enables Move to chat and the reply-box buttons while a quiz is in progress here.
+    const active = inThread && !quiz.done;
+    let quizComments: vscode.Comment[] = [];
+    if (quiz) {
+      quizComments = inThread
+        ? quiz.messages.map((m) => this.messageComment(m))
+        : [this.tutorComment(MOVED_TO_CHAT)];
+    }
     thread.label = entry.title;
     thread.comments = [
       ...(entry.explanation ? [entry.explanation] : []),
-      ...(quiz?.comments ?? []),
+      ...quizComments,
       ...(entry.notes ?? []),
     ];
-    thread.contextValue = `patchTutorThread ${entry.depth}${quizOpen ? ' quiz' : ''}`;
-    thread.canReply = quizOpen;
+    thread.contextValue = `patchTutorThread ${entry.depth}${active ? ' quiz' : ''}`;
+    thread.canReply = inThread && quiz.canAnswer;
     thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+  }
+
+  /** Points an entry at a new quiz, re-rendering whenever the quiz changes. */
+  attachQuiz(entry: ThreadEntry, quiz: QuizRun): void {
+    entry.quiz?.cancel();
+    entry.quiz = quiz;
+    entry.quizInChat = false;
+    quiz.onDidChange(() => {
+      if (entry.quiz === quiz) {
+        this.render(entry);
+      }
+    });
+    this.render(entry);
+  }
+
+  /** Hands the entry's quiz to the chat; the thread keeps a pointer to it. */
+  moveQuizToChat(entry: ThreadEntry): QuizRun | undefined {
+    if (!entry.quiz || entry.quizInChat) {
+      return undefined;
+    }
+    entry.quizInChat = true;
+    this.render(entry);
+    return entry.quiz;
+  }
+
+  private messageComment(message: QuizMessage): vscode.Comment {
+    if (message.from === 'you') {
+      return this.userComment(message.text);
+    }
+    return this.tutorComment(message.pending ? `$(loading~spin) ${message.text}` : message.text);
   }
 
   addNote(entry: ThreadEntry, markdownText: string): void {
@@ -106,7 +138,10 @@ export class ThreadRegistry implements vscode.Disposable {
     for (const [key, entry] of this.entries) {
       if (entry.thread === thread) {
         entry.explainController?.abort();
-        entry.quiz?.controller.abort();
+        // A quiz that moved to the chat keeps going there.
+        if (!entry.quizInChat) {
+          entry.quiz?.cancel();
+        }
         this.entries.delete(key);
       }
     }
@@ -140,7 +175,9 @@ export class ThreadRegistry implements vscode.Disposable {
   dispose(): void {
     this.entries.forEach((e) => {
       e.explainController?.abort();
-      e.quiz?.controller.abort();
+      if (!e.quizInChat) {
+        e.quiz?.cancel();
+      }
     });
     this.controller.dispose();
   }

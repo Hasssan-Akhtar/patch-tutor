@@ -24,6 +24,7 @@ import { HunkHoverProvider } from './ui/hover';
 import { registerInlineCommands } from './ui/inlineCommands';
 import { registerProviderCommands } from './ui/providerCommands';
 import { QuizThreads } from './ui/quizThreads';
+import { CHAT_VIEW_ID, ChatView } from './ui/chat/chatView';
 import { DASHBOARD_VIEW_ID, DashboardView } from './ui/dashboard/dashboardView';
 import { StatusBar } from './ui/statusBar';
 import { ThreadRegistry } from './ui/threads';
@@ -34,6 +35,7 @@ export interface PatchTutorTestApi {
   hunks: HunkService;
   concepts: ConceptStore;
   dashboard: DashboardView;
+  chat: ChatView;
   setProviderOverride(provider: LLMProvider | undefined): void;
 }
 
@@ -107,6 +109,16 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
       }),
     ),
   );
+  const chat = new ChatView(context.extensionUri, (previous) =>
+    quizzes.createRun(previous.hunk, previous.repoRoot),
+  );
+  context.subscriptions.push(
+    chat,
+    // Keep the chat alive while hidden so a half-typed answer is not lost.
+    vscode.window.registerWebviewViewProvider(CHAT_VIEW_ID, chat, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
+  );
   const dashboard = registerDashboard(context, concepts);
 
   registerProviderCommands(context);
@@ -118,6 +130,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     comments,
     quizzes,
     new ReportStore(vscode.Uri.joinPath(context.globalStorageUri, 'reports.jsonl').fsPath),
+    chat,
   );
 
   if (context.extensionMode === vscode.ExtensionMode.Development) {
@@ -129,6 +142,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     hunks,
     concepts,
     dashboard,
+    chat,
     setProviderOverride: (p) => {
       providerOverride = p;
     },

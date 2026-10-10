@@ -254,6 +254,50 @@ suite('inline UI', () => {
     await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
   });
 
+  test('Move to chat continues the same quiz in the sidebar chat', async () => {
+    const document = await vscode.workspace.openTextDocument(file);
+    const hunk = (await api.hunks.getHunks(document))?.hunks.find((h) =>
+      h.added.includes(ADDED_LINE),
+    );
+    assert.ok(hunk);
+    await vscode.commands.executeCommand('patchTutor.quizHunk', file, hunk.id);
+    const [thread] = api.threads.threadsFor(file);
+    assert.ok(thread);
+    await vscode.commands.executeCommand('patchTutor.quiz.submit', { thread, text: 'first' });
+
+    await vscode.commands.executeCommand('patchTutor.quiz.moveToChat', { thread, text: '' });
+
+    // The thread points to the chat and no longer takes answers.
+    const last = thread.comments.at(-1)?.body;
+    assert.ok(last instanceof vscode.MarkdownString);
+    assert.match(last.value, /continues in the Patch Tutor chat/);
+    assert.strictEqual(thread.canReply, false);
+    assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
+
+    // The chat shows the same quiz, answers so far included.
+    const quiz = api.chat.current;
+    assert.ok(quiz);
+    const state = api.chat.state();
+    assert.deepStrictEqual(state.header, { file: 'cart.js', line: 12 });
+    assert.deepStrictEqual(
+      state.messages.map((m) => m.from),
+      ['tutor', 'you', 'tutor'],
+    );
+    assert.match(state.messages[2]?.html ?? '', /Question 2 of 3/);
+    assert.strictEqual(state.canAnswer, true);
+
+    await api.chat.submit('second');
+    quiz.reveal();
+    assert.strictEqual(api.chat.state().done, true);
+    assert.match(api.chat.state().messages.at(-1)?.html ?? '', /Quiz done!/);
+
+    await api.chat.anotherRound();
+    assert.notStrictEqual(api.chat.current, quiz);
+    assert.match(api.chat.state().messages.at(-1)?.html ?? '', /Question 1 of 3/);
+
+    await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
+  });
+
   test('finds staged hunks on the index side of the diff editor', async () => {
     const indexUri = file.with({
       scheme: 'git',
