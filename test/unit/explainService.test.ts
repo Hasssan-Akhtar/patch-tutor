@@ -92,6 +92,16 @@ describe('ExplainService', () => {
     expect(complete).toHaveBeenCalledTimes(1);
   });
 
+  it('bypasses the cache when asked', async () => {
+    complete.mockResolvedValue(validReply);
+
+    await service.explainHunk(hunk, 'standard');
+    const fresh = await service.explainHunk(hunk, 'standard', undefined, { skipCache: true });
+
+    expect(fresh).toMatchObject({ kind: 'explanation', fromCache: false });
+    expect(complete).toHaveBeenCalledTimes(2);
+  });
+
   it('does not reuse the cache across depths or models', async () => {
     complete.mockResolvedValue(validReply);
 

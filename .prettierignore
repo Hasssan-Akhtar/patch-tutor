@@ -2,3 +2,4 @@ dist/
 out/
 .vscode-test/
 test/fixtures/
+src/prompts/*.md

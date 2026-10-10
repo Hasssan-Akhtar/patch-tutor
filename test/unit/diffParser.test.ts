@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseUnifiedDiff } from '../../src/git/diffParser';
+import { similarity } from '../../src/git/renames';
 
 function fixture(name: string): string {
   return readFileSync(join(__dirname, '../fixtures/diffs', name), 'utf8');
@@ -115,5 +116,60 @@ describe('parseUnifiedDiff', () => {
 
       expect(parseUnifiedDiff(moved)[0]?.id).not.toBe(parseUnifiedDiff(diff)[0]?.id);
     });
+  });
+});
+
+describe('rename pairing', () => {
+  it('turns a similar deleted + added file pair into one rename hunk', () => {
+    const hunks = parseUnifiedDiff(fixture('demo-staged-changes.diff'));
+
+    expect(hunks.map((h) => [h.filePath, h.status])).toEqual([
+      ['cart.js', 'modified'],
+      ['cart.js', 'modified'],
+      ['discount.js', 'added'],
+      ['helpers.py', 'renamed'],
+      ['notes.txt', 'deleted'],
+    ]);
+    expect(hunks[3]).toMatchObject({
+      oldPath: 'utils.py',
+      removed: ['    return "hi " + name'],
+      added: ['    return f"hi {name}"'],
+    });
+  });
+
+  it('drops a rename with identical contents, like git does', () => {
+    const diff = [
+      'diff --git a/old.js b/old.js',
+      'deleted file mode 100644',
+      '--- a/old.js',
+      '+++ /dev/null',
+      '@@ -1,2 +0,0 @@',
+      '-const a = 1;',
+      '-module.exports = a;',
+      'diff --git a/new.js b/new.js',
+      'new file mode 100644',
+      '--- /dev/null',
+      '+++ b/new.js',
+      '@@ -0,0 +1,2 @@',
+      '+const a = 1;',
+      '+module.exports = a;',
+    ].join('\n');
+
+    expect(parseUnifiedDiff(diff)).toEqual([]);
+  });
+
+  it('keeps unrelated deleted and added files apart', () => {
+    const hunks = parseUnifiedDiff(fixture('demo-staged-changes.diff'));
+
+    expect(hunks.find((h) => h.filePath === 'notes.txt')?.status).toBe('deleted');
+    expect(hunks.find((h) => h.filePath === 'discount.js')?.status).toBe('added');
+  });
+});
+
+describe('similarity', () => {
+  it('ranges from 0 to 1', () => {
+    expect(similarity('abc', 'abc')).toBe(1);
+    expect(similarity('abc', 'xyz')).toBe(0);
+    expect(similarity('hello world', 'hello there')).toBeGreaterThan(0.5);
   });
 });

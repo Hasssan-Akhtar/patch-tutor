@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { ExplanationCache } from './cache/explanationCache';
 import { buildHunkContext } from './context/contextBuilder';
+import { fixtureContext, runPromptEvals } from './dev/promptEvals';
 import { parseUnifiedDiff } from './git/diffParser';
 import { getActiveRepository, getStagedDiff } from './git/gitService';
 import type { Hunk } from './git/hunk';
@@ -31,6 +32,24 @@ export function activate(context: vscode.ExtensionContext): void {
     maxOutputTokens: () => config().get<number>('maxOutputTokens', 1200),
   });
   registerExplainCommands(context, explainService, output);
+
+  if (context.extensionMode === vscode.ExtensionMode.Development) {
+    const evalService = new ExplainService({
+      createProvider,
+      modelKey: getModelKey,
+      buildContext: fixtureContext,
+      cache: new ExplanationCache(
+        vscode.Uri.joinPath(context.globalStorageUri, 'eval-cache.json').fsPath,
+      ),
+      maxOutputTokens: () => config().get<number>('maxOutputTokens', 1200),
+    });
+    void vscode.commands.executeCommand('setContext', 'patchTutor.devMode', true);
+    context.subscriptions.push(
+      vscode.commands.registerCommand('patchTutor.dev.runPromptEvals', () =>
+        runPromptEvals(context.extensionUri, evalService, getModelKey()),
+      ),
+    );
+  }
 
   context.subscriptions.push(
     output,

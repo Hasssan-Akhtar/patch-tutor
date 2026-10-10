@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import parseDiff from 'parse-diff';
 import type { FileStatus, Hunk } from './hunk';
+import { pairRenames } from './renames';
 
 const DEV_NULL = '/dev/null';
 // git writes this marker after a line with no trailing newline; it is not content.
@@ -8,9 +9,14 @@ const NO_NEWLINE_MARKER = '\\ No newline at end of file';
 
 /**
  * Turns a unified diff into hunks. Binary files, mode-only changes and pure
- * renames have no text hunks, so they produce nothing.
+ * renames have no text hunks, so they produce nothing. A deleted file and an
+ * added file with similar contents are treated as a rename.
  */
 export function parseUnifiedDiff(diff: string): Hunk[] {
+  return pairRenames(parseFiles(diff), parseFiles);
+}
+
+function parseFiles(diff: string): Hunk[] {
   const hunks: Hunk[] = [];
 
   for (const file of parseDiff(diff)) {

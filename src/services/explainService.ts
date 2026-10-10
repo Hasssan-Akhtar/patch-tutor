@@ -43,14 +43,19 @@ export const EXPLAIN_PROMPT_VERSION = createHash('sha1')
 export class ExplainService {
   constructor(private readonly deps: ExplainDeps) {}
 
-  async explainHunk(hunk: Hunk, depth: Depth, signal?: AbortSignal): Promise<ExplainResult> {
+  async explainHunk(
+    hunk: Hunk,
+    depth: Depth,
+    signal?: AbortSignal,
+    options: { skipCache?: boolean } = {},
+  ): Promise<ExplainResult> {
     const key = cacheKey({
       hunkId: hunk.id,
       depth,
       model: this.deps.modelKey(),
       promptVersion: EXPLAIN_PROMPT_VERSION,
     });
-    const cached = await this.deps.cache.get(key);
+    const cached = options.skipCache ? undefined : await this.deps.cache.get(key);
     if (cached) {
       return { kind: 'explanation', explanation: cached, fromCache: true };
     }

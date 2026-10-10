@@ -54,7 +54,12 @@ async function explainStagedChanges(
             increment: 100 / hunks.length,
           });
           const result = await service.explainHunk(hunk, 'standard', controller.signal);
-          output.appendLine(`\n── ${hunk.filePath} (lines ${hunk.newStart}+${hunk.newLines})`);
+          const where =
+            hunk.status === 'deleted'
+              ? 'deleted file'
+              : `lines ${hunk.newStart}-${hunk.newStart + Math.max(hunk.newLines, 1) - 1}`;
+          const file = hunk.oldPath ? `${hunk.oldPath} -> ${hunk.filePath}` : hunk.filePath;
+          output.appendLine(`\n── ${file} (${where})`);
           if (result.kind === 'explanation') {
             output.appendLine(result.fromCache ? '(from cache)' : '(validated)');
             output.appendLine(JSON.stringify(result.explanation, null, 2));

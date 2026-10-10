@@ -1,0 +1,57 @@
+diff --git a/cart.js b/cart.js
+index db740f4..a63c764 100644
+--- a/cart.js
++++ b/cart.js
+@@ -1,7 +1,8 @@
+-export function total(items) {
++export async function total(items) {
++  if (items.length === 0) return 0;
+   let sum = 0;
+   for (const item of items) {
+-    sum += item.price;
++    sum += await item.getPrice();
+   }
+   return sum;
+ }
+@@ -11,5 +12,5 @@ export function label(item) {
+ }
+ 
+ export function formatPrice(n) {
+-  return n.toFixed(2);
++  return `$${n.toFixed(2)}`;
+ }
+diff --git a/discount.js b/discount.js
+new file mode 100644
+index 0000000..6ee0b1f
+--- /dev/null
++++ b/discount.js
+@@ -0,0 +1,6 @@
++export function applyDiscount(price, percent) {
++  if (percent < 0 || percent > 100) {
++    throw new RangeError('percent must be between 0 and 100');
++  }
++  return price * (1 - percent / 100);
++}
+diff --git a/helpers.py b/helpers.py
+new file mode 100644
+index 0000000..f57e72c
+--- /dev/null
++++ b/helpers.py
+@@ -0,0 +1,2 @@
++def greet(name):
++    return f"hi {name}"
+diff --git a/notes.txt b/notes.txt
+deleted file mode 100644
+index c32d7ff..0000000
+--- a/notes.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-TODO: delete me
+diff --git a/utils.py b/utils.py
+deleted file mode 100644
+index c5051b9..0000000
+--- a/utils.py
++++ /dev/null
+@@ -1,2 +0,0 @@
+-def greet(name):
+-    return "hi " + name

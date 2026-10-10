@@ -44,6 +44,11 @@
         "command": "patchTutor.testConnection",
         "title": "Test connection",
         "category": "Patch Tutor"
+      },
+      {
+        "command": "patchTutor.dev.runPromptEvals",
+        "title": "Run prompt evals (dev)",
+        "category": "Patch Tutor"
       }
     ],
     "configuration": {
@@ -83,6 +88,14 @@
           "markdownDescription": "Approximate maximum length of each explanation, in tokens."
         }
       }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "patchTutor.dev.runPromptEvals",
+          "when": "patchTutor.devMode"
+        }
+      ]
     }
   },
   "scripts": {
@@ -115,6 +128,7 @@
     "vitest": "^5.0.3"
   },
   "dependencies": {
+    "diff": "^9.0.0",
     "parse-diff": "^0.12.0",
     "zod": "^4.6.5"
   },
