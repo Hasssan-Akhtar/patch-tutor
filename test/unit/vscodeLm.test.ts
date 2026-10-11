@@ -149,6 +149,24 @@ describe('VscodeLmProvider', () => {
     expect(error.cause).toBe(thrown);
   });
 
+  it('explains a model that only VS Code itself may use, and hides it afterwards', async () => {
+    const coreOnly = {
+      ...fakeModel('core-only', 'fam-core', async () => {
+        throw new Error('Model core-only is only available to VS Code core.');
+      }),
+      name: 'Core Model',
+    };
+    selectChatModels.mockResolvedValue([coreOnly, fakeModel('b', 'fam-b')]);
+
+    const error = await completeError(new VscodeLmProvider('core-only'));
+
+    expect(error.kind).toBe('notFound');
+    expect(error.message).toBe(
+      'Core Model is reserved for VS Code itself. Choose another model in Model settings.',
+    );
+    expect((await listVscodeModels()).map((m) => m.id)).toEqual(['b']);
+  });
+
   it('does not send anything when already aborted', async () => {
     const model = fakeModel('a', 'fam');
     selectChatModels.mockResolvedValue([model]);

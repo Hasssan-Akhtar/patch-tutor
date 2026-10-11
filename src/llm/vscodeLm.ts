@@ -2,6 +2,14 @@ import * as vscode from 'vscode';
 import { ProviderError, type CompletionRequest, type LLMProvider } from './provider';
 
 const PREFERRED_VENDOR = 'copilot';
+/**
+ * Models Copilot refused because only VS Code's own features may use them.
+ * The stable API does not mark these, so they are learned from the refusal
+ * and hidden for the rest of the session.
+ */
+const reserved = new Set<string>();
+const RESERVED_ERROR = /only available to VS Code core/i;
+
 const JUSTIFICATION =
   'Patch Tutor uses a language model to explain your code changes and quiz you on them.';
 
@@ -44,6 +52,14 @@ export class VscodeLmProvider implements LLMProvider {
       throwIfAborted(request.signal);
       return text;
     } catch (error) {
+      if (error instanceof Error && RESERVED_ERROR.test(error.message)) {
+        reserved.add(modelKey(chat));
+        throw new ProviderError(
+          `${chat.name} is reserved for VS Code itself. Choose another model in Model settings.`,
+          'notFound',
+          { cause: error },
+        );
+      }
       throw toProviderError(error, request.signal);
     } finally {
       request.signal?.removeEventListener('abort', cancel);
@@ -92,7 +108,7 @@ export async function listVscodeModels(): Promise<vscode.LanguageModelChat[]> {
 function pickable(models: readonly vscode.LanguageModelChat[]): vscode.LanguageModelChat[] {
   const byName = new Map<string, vscode.LanguageModelChat>();
   for (const model of models) {
-    if (!(model.maxInputTokens > 0)) {
+    if (!(model.maxInputTokens > 0) || reserved.has(modelKey(model))) {
       continue;
     }
     const key = `${model.vendor}\n${model.name}`;
@@ -103,6 +119,10 @@ function pickable(models: readonly vscode.LanguageModelChat[]): vscode.LanguageM
   }
   const rank = (m: vscode.LanguageModelChat) => (m.vendor === PREFERRED_VENDOR ? 0 : 1);
   return [...byName.values()].sort((a, b) => rank(a) - rank(b));
+}
+
+function modelKey(model: vscode.LanguageModelChat): string {
+  return `${model.vendor}/${model.id}`;
 }
 
 function isAlias(model: vscode.LanguageModelChat): boolean {
