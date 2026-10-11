@@ -147,6 +147,63 @@
         "icon": "$(gear)"
       }
     ],
+    "walkthroughs": [
+      {
+        "id": "gettingStarted",
+        "title": "Get started with Patch Tutor",
+        "description": "Turn your own git changes into short lessons.",
+        "steps": [
+          {
+            "id": "model",
+            "title": "Pick a model",
+            "description": "Choose where explanations come from: models already in VS Code, or your own key.\n[Open model settings](command:patchTutor.openModelSettings)",
+            "media": {
+              "markdown": "media/walkthrough/model.md"
+            },
+            "completionEvents": [
+              "onCommand:patchTutor.openModelSettings"
+            ]
+          },
+          {
+            "id": "explain",
+            "title": "Explain a change",
+            "description": "Edit a file in a git repo, then click **Explain this change** above the hunk.\n[Explain staged changes](command:patchTutor.explainStagedChanges)",
+            "media": {
+              "markdown": "media/walkthrough/explain.md"
+            },
+            "completionEvents": [
+              "onCommand:patchTutor.explainHunk",
+              "onCommand:patchTutor.explainStagedChanges"
+            ]
+          },
+          {
+            "id": "quiz",
+            "title": "Quiz yourself",
+            "description": "Click **Quiz me** on a hunk and answer a few short questions.\n[Open the Quiz chat](command:patchTutor.chat.focus)",
+            "media": {
+              "markdown": "media/walkthrough/quiz.md"
+            },
+            "completionEvents": [
+              "onCommand:patchTutor.quizHunk",
+              "onCommand:patchTutor.thread.quiz",
+              "onView:patchTutor.chat"
+            ]
+          },
+          {
+            "id": "progress",
+            "title": "Track your progress",
+            "description": "See which concepts you have mastered and which need practice.\n[Show progress](command:patchTutor.showProgress)",
+            "media": {
+              "markdown": "media/walkthrough/progress.md"
+            },
+            "completionEvents": [
+              "onCommand:patchTutor.showProgress",
+              "onView:patchTutor.progress"
+            ]
+          }
+        ]
+      }
+    ],
     "configuration": {
       "title": "Patch Tutor",
       "properties": {
