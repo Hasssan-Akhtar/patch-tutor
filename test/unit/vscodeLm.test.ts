@@ -228,6 +228,17 @@ describe('listVscodeModels', () => {
     expect((await listVscodeModels()).map((m) => m.id)).toEqual(['gpt-4o-mini', 'gpt-5.6-luna']);
   });
 
+  it('prefers a listed model when a hidden one has the same id', async () => {
+    const cli = { ...fakeModel('auto', 'auto', undefined, 'copilotcli'), maxInputTokens: 0 };
+    const copilot = fakeModel('auto', 'auto');
+    selectChatModels.mockResolvedValue([cli, copilot]);
+
+    await new VscodeLmProvider('auto').complete(request);
+
+    expect(copilot.sendRequest).toHaveBeenCalled();
+    expect(cli.sendRequest).not.toHaveBeenCalled();
+  });
+
   it('still uses a saved model that the list hides as an alias', async () => {
     const alias = { ...fakeModel('copilot-utility-small', 'gpt'), name: 'GPT-4o mini' };
     const visible = { ...fakeModel('gpt-4o-mini', 'gpt'), name: 'GPT-4o mini' };

@@ -79,8 +79,9 @@ export class VscodeLmProvider implements LLMProvider {
     if (!this.model) {
       return models[0] as vscode.LanguageModelChat;
     }
-    // A saved model may be one the list hides, so match against all of them.
-    const match = all.find((m) => m.id === this.model || m.family === this.model);
+    // Listed models win; a saved model may also be one the list hides.
+    const matches = (m: vscode.LanguageModelChat) => m.id === this.model || m.family === this.model;
+    const match = models.find(matches) ?? all.find(matches);
     if (!match) {
       const available = models.map((m) => m.family).join(', ');
       throw new ProviderError(
