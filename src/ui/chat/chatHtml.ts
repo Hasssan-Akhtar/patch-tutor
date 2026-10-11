@@ -135,12 +135,12 @@ export function chatShellHtml(security: ChatPageSecurity): string {
   </header>
   <div class="field">
     <label for="provider">Provider</label>
-    <select id="provider"></select>
+    <div class="dd"><select id="provider"></select></div>
     <p class="hint" id="provider-hint"></p>
   </div>
   <div id="field-url" class="field" hidden>
     <label for="base-url">Server URL</label>
-    <select id="preset" hidden></select>
+    <div class="dd"><select id="preset" hidden></select></div>
     <input id="base-url" type="url" spellcheck="false" placeholder="https://example.com/v1">
   </div>
   <div id="field-key" class="field" hidden>
@@ -160,7 +160,7 @@ export function chatShellHtml(security: ChatPageSecurity): string {
   <div class="field">
     <label for="model-select">Model</label>
     <div class="row">
-      <select id="model-select" hidden></select>
+      <div class="dd"><select id="model-select" hidden></select></div>
       <input id="model" spellcheck="false" aria-label="Model name">
       <button class="icon" data-action="loadModels" title="Refresh model list" aria-label="Refresh model list">↻</button>
     </div>
@@ -273,15 +273,33 @@ const SETTINGS_STYLES = `
 .field { margin: 14px 0; }
 .field label { display: block; font-weight: 600; margin-bottom: 5px; }
 .label-row { display: flex; justify-content: space-between; align-items: baseline; }
-.field input, .field select { width: 100%; box-sizing: border-box; font: inherit; padding: 4px 6px; border-radius: 2px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent)); }
-.field select { color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border-color: var(--vscode-dropdown-border, transparent); }
-.field input:focus, .field select:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-#preset { margin-bottom: 6px; }
-.row { display: flex; flex-wrap: wrap; gap: 4px; }
-.row input, .row select { flex: 1; min-width: 0; }
+.field input { width: 100%; box-sizing: border-box; font: inherit; padding: 4px 8px; border-radius: 4px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent)); }
+.field input:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+#field-url .dd { margin-bottom: 6px; }
+.row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.row input, .row .dd { flex: 1; min-width: 0; }
 /* With a model list, the name field is only for "Other…" and sits below it. */
 #model.below { flex-basis: 100%; order: 3; }
-button.icon { padding: 2px 8px; }
+button.icon { flex: none; width: 26px; height: 26px; padding: 0; background: none; color: var(--vscode-icon-foreground, inherit); }
+button.icon:hover { background: var(--vscode-toolbar-hoverBackground); }
+.dd { position: relative; }
+.dd > select { display: none !important; }
+.dd-button { display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; text-align: left; padding: 4px 8px; border-radius: 4px; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border, transparent)); }
+.dd-button:hover { background: var(--vscode-dropdown-background); }
+.dd-button:focus-visible, .dd-button[aria-expanded="true"] { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.dd-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-text.placeholder { color: var(--vscode-descriptionForeground); }
+.dd-chevron { flex: none; width: 5px; height: 5px; margin: 0 2px 3px 0; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); opacity: .7; }
+.dd-list { position: absolute; z-index: 10; top: calc(100% + 2px); left: 0; right: 0; max-height: 240px; overflow-y: auto; box-sizing: border-box; padding: 4px; border-radius: 4px; outline: none; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border, var(--vscode-widget-border, transparent)); box-shadow: 0 4px 12px var(--vscode-widget-shadow, rgba(0,0,0,.3)); }
+.dd-option { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 3px; cursor: pointer; white-space: nowrap; }
+.dd-option.active { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); }
+.dd-check { flex: none; width: 12px; visibility: hidden; }
+.dd-option[aria-selected="true"] .dd-check { visibility: visible; }
+.dd-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dd-detail { font-size: 12px; color: var(--vscode-descriptionForeground); }
+.dd-option.active .dd-detail { color: inherit; opacity: .8; }
+.dd-sep { margin-top: 5px; position: relative; }
+.dd-sep::before { content: ''; position: absolute; top: -3px; left: 0; right: 0; border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,.25)); }
 .hint { margin: 5px 0 0; font-size: 12px; color: var(--vscode-descriptionForeground); line-height: 1.4; }
 .hint.inline { display: inline; margin: 0; font-weight: normal; }
 .key-saved { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--vscode-descriptionForeground); }
@@ -371,21 +389,22 @@ function drawModel() {
     input.classList.remove('below');
     input.value = form.model;
     input.placeholder = fallback || 'Model name';
+    syncDropdowns();
     return;
   }
   select.innerHTML = '';
-  const add = (value, text) => {
+  const add = (value, text, detail) => {
     const option = document.createElement('option');
     option.value = value;
     option.textContent = text;
+    if (detail) option.dataset.detail = detail;
     select.appendChild(option);
+    return option;
   };
-  if (fallback || !form.model) add('', fallback || 'Choose a model');
-  for (const m of models) {
-    const name = m.label && m.label !== m.id ? m.label : m.id;
-    add(m.id, m.detail ? name + ' (' + m.detail + ')' : name);
-  }
-  add(OTHER, 'Other…');
+  if (fallback) add('', fallback);
+  else if (!form.model) add('', 'Choose a model').dataset.placeholder = '1';
+  for (const m of models) add(m.id, m.label || m.id, m.detail);
+  add(OTHER, 'Other…').dataset.separator = '1';
   const listed = !form.model || models.some((m) => m.id === form.model);
   select.value = listed ? form.model : OTHER;
   select.hidden = false;
@@ -393,6 +412,7 @@ function drawModel() {
   input.hidden = select.value !== OTHER;
   input.value = listed ? '' : form.model;
   input.placeholder = 'Model name';
+  syncDropdowns();
 }
 
 function readForm() {
@@ -474,6 +494,114 @@ function onSettingsClick(target) {
   }
   return true;
 }
+
+// Native <select> popups ignore the editor theme, so each select is drawn as
+// a button and list. The hidden <select> still holds the value and fires
+// 'change', so the form code above only ever reads and writes the select.
+const dropdowns = [];
+function syncDropdowns() { for (const sync of dropdowns) sync(); }
+
+function setupDropdown(select) {
+  const box = select.parentElement;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'dd-button';
+  button.id = select.id + '-button';
+  button.setAttribute('aria-haspopup', 'listbox');
+  button.setAttribute('aria-expanded', 'false');
+  button.innerHTML = '<span class="dd-text"></span><span class="dd-chevron" aria-hidden="true"></span>';
+  const label = document.querySelector('label[for="' + select.id + '"]');
+  if (label) label.htmlFor = button.id;
+  const list = document.createElement('div');
+  list.className = 'dd-list';
+  list.setAttribute('role', 'listbox');
+  list.tabIndex = -1;
+  list.hidden = true;
+  box.append(button, list);
+  let items = [];
+  let active = -1;
+
+  const choices = () => [...select.options].filter((o) => !o.dataset.placeholder);
+
+  function highlight(index) {
+    active = Math.max(0, Math.min(items.length - 1, index));
+    items.forEach((item, i) => item.classList.toggle('active', i === active));
+    const item = items[active];
+    if (!item) return;
+    list.setAttribute('aria-activedescendant', item.id);
+    item.scrollIntoView({ block: 'nearest' });
+  }
+
+  function open() {
+    list.innerHTML = '';
+    items = choices().map((option, i) => {
+      const item = document.createElement('div');
+      item.className = 'dd-option' + (option.dataset.separator ? ' dd-sep' : '');
+      item.id = select.id + '-option-' + i;
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', String(option.value === select.value));
+      item.dataset.value = option.value;
+      item.innerHTML = '<span class="dd-check" aria-hidden="true">✓</span><span class="dd-label"></span><span class="dd-detail"></span>';
+      item.querySelector('.dd-label').textContent = option.textContent;
+      item.querySelector('.dd-detail').textContent = option.dataset.detail || '';
+      list.appendChild(item);
+      return item;
+    });
+    list.hidden = false;
+    button.setAttribute('aria-expanded', 'true');
+    highlight(Math.max(0, items.findIndex((item) => item.dataset.value === select.value)));
+    list.focus();
+  }
+
+  function close(refocus) {
+    if (list.hidden) return;
+    list.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+    if (refocus) button.focus();
+  }
+
+  function choose(value) {
+    close(true);
+    if (select.value === value) return;
+    select.value = value;
+    sync();
+    select.dispatchEvent(new Event('change'));
+  }
+
+  function sync() {
+    box.hidden = select.hidden;
+    const option = select.selectedOptions[0];
+    const text = button.querySelector('.dd-text');
+    text.textContent = option ? option.textContent : '';
+    text.classList.toggle('placeholder', !!(option && option.dataset.placeholder));
+    if (select.hidden) close(false);
+  }
+
+  button.addEventListener('click', () => (list.hidden ? open() : close(true)));
+  button.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); open(); }
+  });
+  list.addEventListener('keydown', (event) => {
+    const moves = { ArrowDown: active + 1, ArrowUp: active - 1, Home: 0, End: items.length - 1, PageDown: active + 8, PageUp: active - 8 };
+    if (event.key in moves) { event.preventDefault(); highlight(moves[event.key]); }
+    else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (items[active]) choose(items[active].dataset.value); }
+    else if (event.key === 'Escape') { event.preventDefault(); close(true); }
+    else if (event.key === 'Tab') close(false);
+  });
+  list.addEventListener('click', (event) => {
+    const item = event.target.closest('.dd-option');
+    if (item) choose(item.dataset.value);
+  });
+  list.addEventListener('mousemove', (event) => {
+    const item = event.target.closest('.dd-option');
+    if (item && items.indexOf(item) !== active) highlight(items.indexOf(item));
+  });
+  document.addEventListener('mousedown', (event) => { if (!box.contains(event.target)) close(false); });
+  dropdowns.push(sync);
+  sync();
+}
+
+for (const id of ['provider', 'preset', 'model-select']) setupDropdown($(id));
 
 $('provider').addEventListener('change', () => switchProvider($('provider').value));
 $('preset').addEventListener('change', () => {

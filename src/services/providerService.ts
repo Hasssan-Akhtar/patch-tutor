@@ -23,7 +23,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: 'vscodeLm',
     label: 'VS Code models',
-    detail: 'GitHub Copilot or any model another extension adds to VS Code. No API key needed.',
+    detail: 'Copilot and other models in VS Code. No key needed.',
     usesKey: false,
     usesBaseUrl: false,
     defaultBaseUrl: '',
@@ -32,7 +32,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: 'anthropic',
     label: 'Anthropic',
-    detail: 'Claude models with your Anthropic API key.',
+    detail: 'Claude, with your API key.',
     usesKey: true,
     usesBaseUrl: false,
     defaultBaseUrl: '',
@@ -42,7 +42,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: 'openaiCompatible',
     label: 'OpenAI-compatible',
-    detail: 'OpenAI, OpenRouter, Groq, LM Studio or any server with the same API.',
+    detail: 'OpenAI, OpenRouter, LM Studio and others.',
     usesKey: true,
     usesBaseUrl: true,
     defaultBaseUrl: OPENAI_PRESETS[0]?.url ?? '',
@@ -52,7 +52,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: 'ollama',
     label: 'Ollama (local)',
-    detail: 'A model running on this machine. Nothing leaves your computer.',
+    detail: 'Runs on your machine.',
     usesKey: false,
     usesBaseUrl: true,
     defaultBaseUrl: OLLAMA_DEFAULT_URL,
@@ -187,7 +187,8 @@ export class ProviderService {
       return (await listVscodeModels()).map((m) => ({
         id: m.id,
         label: m.name,
-        detail: `${m.vendor} · ${m.family} · ${m.maxInputTokens.toLocaleString()} input tokens`,
+        // Copilot is the usual vendor, so only others are named.
+        detail: m.vendor === 'copilot' ? undefined : m.vendor,
       }));
     }
     const provider = this.create(settings, keyOverride);

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ProviderError } from '../../src/llm/provider';
-import { VscodeLmProvider } from '../../src/llm/vscodeLm';
+import { listVscodeModels, VscodeLmProvider } from '../../src/llm/vscodeLm';
 
 type SendRequest = (
   messages: unknown[],
@@ -15,6 +15,7 @@ function fakeModel(id: string, family: string, sendRequest?: SendRequest, vendor
     family,
     vendor,
     name: id,
+    maxInputTokens: 1000,
     sendRequest: vi.fn(sendRequest ?? (async () => ({ text: stream(['O', 'K']) }))),
   };
 }
@@ -173,5 +174,58 @@ describe('VscodeLmProvider', () => {
 
     expect(token?.isCancellationRequested).toBe(true);
     expect(error.kind).toBe('cancelled');
+  });
+});
+
+describe('listVscodeModels', () => {
+  const model = (id: string, name: string, maxInputTokens: number, vendor = 'copilot') => ({
+    id,
+    name,
+    vendor,
+    family: id,
+    maxInputTokens,
+  });
+
+  beforeEach(() => {
+    selectChatModels.mockReset();
+  });
+
+  it('hides models that take no input', async () => {
+    selectChatModels.mockResolvedValue([
+      model('auto', 'Auto', 0, 'copilotcli'),
+      model('gpt-5-mini', 'GPT-5 mini', 127_790),
+    ] as never);
+
+    expect((await listVscodeModels()).map((m) => m.id)).toEqual(['gpt-5-mini']);
+  });
+
+  it('shows one entry per model name, preferring the public id over internal aliases', async () => {
+    selectChatModels.mockResolvedValue([
+      model('gpt-4o-mini', 'GPT-4o mini', 12_078),
+      model('copilot-utility-small', 'GPT-4o mini', 12_078),
+      model('copilot-dictation-cleanup-luna', 'GPT-5.6 Luna', 921_793),
+      model('gpt-5.6-luna', 'GPT-5.6 Luna', 921_793),
+    ] as never);
+
+    expect((await listVscodeModels()).map((m) => m.id)).toEqual(['gpt-4o-mini', 'gpt-5.6-luna']);
+  });
+
+  it('still uses a saved model that the list hides as an alias', async () => {
+    const alias = { ...fakeModel('copilot-utility-small', 'gpt'), name: 'GPT-4o mini' };
+    const visible = { ...fakeModel('gpt-4o-mini', 'gpt'), name: 'GPT-4o mini' };
+    selectChatModels.mockResolvedValue([visible, alias]);
+
+    await new VscodeLmProvider('copilot-utility-small').complete(request);
+
+    expect(alias.sendRequest).toHaveBeenCalled();
+  });
+
+  it('keeps same-named models from different vendors apart', async () => {
+    selectChatModels.mockResolvedValue([
+      model('auto', 'Auto', 100),
+      model('auto', 'Auto', 100, 'other-ext'),
+    ] as never);
+
+    expect((await listVscodeModels()).map((m) => m.vendor)).toEqual(['copilot', 'other-ext']);
   });
 });

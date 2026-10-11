@@ -120,4 +120,30 @@ describe('model picker', () => {
     expect($<HTMLInputElement>('model').value).toBe('my-model');
     expect($('model-status').textContent).toBe('HTTP 400');
   });
+
+  it('shows the chosen model on a themed dropdown and picks from its list', () => {
+    openSettings('claude-haiku-5-5');
+    const button = $('model-select').parentElement?.querySelector<HTMLElement>('.dd-button');
+    expect(button?.textContent).toContain('Claude Haiku 5.5');
+
+    button?.click();
+    const list = $('model-select').parentElement?.querySelector<HTMLElement>('.dd-list');
+    expect(list?.hidden).toBe(false);
+    const option = [...(list?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])].find((o) =>
+      o.textContent?.includes('Claude Opus 5.5'),
+    );
+    option?.click();
+
+    expect(list?.hidden).toBe(true);
+    expect($<HTMLSelectElement>('model-select').value).toBe('claude-opus-5-5');
+    $('settings').querySelector<HTMLElement>('[data-action="saveSettings"]')?.click();
+    expect(lastForm()).toMatchObject({ model: 'claude-opus-5-5' });
+  });
+
+  it('hides the themed dropdown along with its list', () => {
+    openSettings('my-model');
+    send({ type: 'models', provider: 'anthropic', models: [] });
+
+    expect(($('model-select').parentElement as HTMLElement).hidden).toBe(true);
+  });
 });

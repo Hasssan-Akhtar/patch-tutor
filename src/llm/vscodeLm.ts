@@ -52,7 +52,8 @@ export class VscodeLmProvider implements LLMProvider {
   }
 
   private async selectModel(): Promise<vscode.LanguageModelChat> {
-    const models = await listVscodeModels();
+    const all = await vscode.lm.selectChatModels();
+    const models = pickable(all);
     if (models.length === 0) {
       throw new ProviderError(
         'No language models are available in VS Code. Install GitHub Copilot (or another extension that provides models) and sign in, then try again.',
@@ -62,7 +63,8 @@ export class VscodeLmProvider implements LLMProvider {
     if (!this.model) {
       return models[0] as vscode.LanguageModelChat;
     }
-    const match = models.find((m) => m.id === this.model || m.family === this.model);
+    // A saved model may be one the list hides, so match against all of them.
+    const match = all.find((m) => m.id === this.model || m.family === this.model);
     if (!match) {
       const available = models.map((m) => m.family).join(', ');
       throw new ProviderError(
@@ -74,11 +76,37 @@ export class VscodeLmProvider implements LLMProvider {
   }
 }
 
-/** Every model VS Code offers, Copilot's first so an empty setting picks one of them. */
+/**
+ * The models a person would pick from, Copilot's first so an empty setting
+ * picks one of them.
+ */
 export async function listVscodeModels(): Promise<vscode.LanguageModelChat[]> {
-  const models = await vscode.lm.selectChatModels();
+  return pickable(await vscode.lm.selectChatModels());
+}
+
+/**
+ * Drops models that take no input, and lists each name once: Copilot also
+ * offers internal aliases of the same model (`copilot-utility-small` for
+ * GPT-4o mini).
+ */
+function pickable(models: readonly vscode.LanguageModelChat[]): vscode.LanguageModelChat[] {
+  const byName = new Map<string, vscode.LanguageModelChat>();
+  for (const model of models) {
+    if (!(model.maxInputTokens > 0)) {
+      continue;
+    }
+    const key = `${model.vendor}\n${model.name}`;
+    const kept = byName.get(key);
+    if (!kept || (isAlias(kept) && !isAlias(model))) {
+      byName.set(key, model);
+    }
+  }
   const rank = (m: vscode.LanguageModelChat) => (m.vendor === PREFERRED_VENDOR ? 0 : 1);
-  return [...models].sort((a, b) => rank(a) - rank(b));
+  return [...byName.values()].sort((a, b) => rank(a) - rank(b));
+}
+
+function isAlias(model: vscode.LanguageModelChat): boolean {
+  return model.id.startsWith(`${model.vendor}-`);
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
