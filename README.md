@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Hasssan-Akhtar/patch-tutor/raw/HEAD/media/logo-dark.png">
-    <img src="media/logo.png" alt="Patch Tutor" width="420">
-  </picture>
+  <img src="media/banner.png" alt="Patch Tutor" width="600">
 </p>
 
 # Patch Tutor

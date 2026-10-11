@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-10-12)
+
+- The README logo is now readable on dark themes, including the extension page inside VS Code.
+
 ## 0.1.0 (2026-10-12)
 
 First release.
