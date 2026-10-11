@@ -5,6 +5,7 @@ import { fitToBudget, truncateLines, type ContextSection } from './budget';
 import { detectFrameworks } from './frameworks';
 import { addedLines, extractIdentifiers } from './hunkLines';
 import { languageFromPath } from './language';
+import { isInsidePath } from './paths';
 import { estimateTokens } from './tokens';
 
 const MAX_DEFINITIONS = 5;
@@ -177,8 +178,9 @@ function toFoundRange(location: vscode.Location | vscode.LocationLink): FoundRan
 }
 
 function isInside(uri: vscode.Uri, root: vscode.Uri): boolean {
-  const rootPath = root.path.endsWith('/') ? root.path : `${root.path}/`;
-  return uri.scheme === root.scheme && uri.path.startsWith(rootPath);
+  return (
+    uri.scheme === root.scheme && isInsidePath(uri.path, root.path, process.platform === 'win32')
+  );
 }
 
 async function readManifests(repoRoot: vscode.Uri) {

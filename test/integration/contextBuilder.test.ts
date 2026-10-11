@@ -1,12 +1,12 @@
 import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { buildHunkContext } from '../../src/context/contextBuilder';
 import { parseUnifiedDiff } from '../../src/git/diffParser';
 import type { HunkContext } from '../../src/services/explainService';
+import { makeTempDir, removeTempDir } from './tempDir';
 
 const ORIGINAL = `function applyTax(amount) {
   return amount * 1.2;
@@ -31,7 +31,7 @@ suite('contextBuilder', () => {
   let dir: string;
 
   suiteSetup(() => {
-    dir = mkdtempSync(join(tmpdir(), 'patch-tutor-context-'));
+    dir = makeTempDir('patch-tutor-context-');
     git(dir, 'init', '-q');
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ dependencies: { express: '^5' } }));
     writeFileSync(join(dir, 'cart.js'), ORIGINAL);
@@ -43,7 +43,7 @@ suite('contextBuilder', () => {
   });
 
   suiteTeardown(() => {
-    rmSync(dir, { recursive: true, force: true });
+    removeTempDir(dir);
   });
 
   test('collects the enclosing function, used definitions and frameworks', async function () {

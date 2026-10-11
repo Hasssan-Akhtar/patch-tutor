@@ -1,7 +1,6 @@
 import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { PatchTutorTestApi } from '../../src/extension';
@@ -9,6 +8,7 @@ import { getGitApi } from '../../src/git/gitService';
 
 // Padding keeps the two working-tree changes more than git's 3 context lines apart,
 // so they become separate hunks.
+import { makeTempDir, removeTempDir } from './tempDir';
 const PADDING = Array.from({ length: 8 }, (_, i) => `// note ${i + 1}`);
 const ORIGINAL = [
   ...PADDING,
@@ -72,7 +72,7 @@ suite('inline UI', () => {
   const requests: string[] = [];
 
   suiteSetup(async () => {
-    dir = mkdtempSync(join(tmpdir(), 'patch-tutor-inline-'));
+    dir = makeTempDir('patch-tutor-inline-');
     git(dir, 'init', '-q');
     git(dir, 'config', 'user.name', 'Test');
     git(dir, 'config', 'user.email', 'test@example.com');
@@ -110,7 +110,7 @@ suite('inline UI', () => {
   suiteTeardown(async () => {
     api.setProviderOverride(undefined);
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-    rmSync(dir, { recursive: true, force: true });
+    removeTempDir(dir);
   });
 
   test('shows CodeLens on the changed lines of the working tree file', async () => {

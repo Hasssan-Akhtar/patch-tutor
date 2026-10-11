@@ -1,11 +1,11 @@
 import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { parseUnifiedDiff } from '../../src/git/diffParser';
 import { getCommitDiff, getGitApi, getStagedDiff, getUnstagedDiff } from '../../src/git/gitService';
+import { makeTempDir, removeTempDir } from './tempDir';
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
@@ -44,7 +44,7 @@ suite('gitService', () => {
   let dir: string;
 
   suiteSetup(() => {
-    dir = mkdtempSync(join(tmpdir(), 'patch-tutor-'));
+    dir = makeTempDir('patch-tutor-');
     git(dir, 'init', '-q');
     git(dir, 'config', 'user.name', 'Test');
     git(dir, 'config', 'user.email', 'test@example.com');
@@ -55,7 +55,7 @@ suite('gitService', () => {
   });
 
   suiteTeardown(() => {
-    rmSync(dir, { recursive: true, force: true });
+    removeTempDir(dir);
   });
 
   async function openRepo() {
