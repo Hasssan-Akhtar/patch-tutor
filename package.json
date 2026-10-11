@@ -12,8 +12,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/patch-tutor"
+    "url": "https://github.com/Hasssan-Akhtar/patch-tutor.git"
   },
+  "bugs": {
+    "url": "https://github.com/Hasssan-Akhtar/patch-tutor/issues"
+  },
+  "homepage": "https://github.com/Hasssan-Akhtar/patch-tutor#readme",
   "engines": {
     "vscode": "^1.120.0"
   },
