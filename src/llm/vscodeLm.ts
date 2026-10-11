@@ -1,14 +1,17 @@
 import * as vscode from 'vscode';
 import { ProviderError, type CompletionRequest, type LLMProvider } from './provider';
 
-const VENDOR = 'copilot';
+const PREFERRED_VENDOR = 'copilot';
 const JUSTIFICATION =
   'Patch Tutor uses a language model to explain your code changes and quiz you on them.';
 
-/** Uses models VS Code already provides (GitHub Copilot), so no API key is needed. */
+/**
+ * Uses models VS Code already provides: GitHub Copilot, or any extension that
+ * registers models through the stable Language Model API. No API key is needed.
+ */
 export class VscodeLmProvider implements LLMProvider {
   readonly id = 'vscodeLm';
-  readonly name = 'GitHub Copilot (VS Code)';
+  readonly name = 'VS Code models';
 
   /** @param model a model id or family; empty picks the first available model. */
   constructor(private readonly model: string) {}
@@ -49,10 +52,10 @@ export class VscodeLmProvider implements LLMProvider {
   }
 
   private async selectModel(): Promise<vscode.LanguageModelChat> {
-    const models = await listCopilotModels();
+    const models = await listVscodeModels();
     if (models.length === 0) {
       throw new ProviderError(
-        'No Copilot models are available. Install GitHub Copilot and sign in, then try again.',
+        'No language models are available in VS Code. Install GitHub Copilot (or another extension that provides models) and sign in, then try again.',
         'notFound',
       );
     }
@@ -63,7 +66,7 @@ export class VscodeLmProvider implements LLMProvider {
     if (!match) {
       const available = models.map((m) => m.family).join(', ');
       throw new ProviderError(
-        `Copilot model "${this.model}" was not found. Available: ${available}.`,
+        `Model "${this.model}" was not found in VS Code. Available: ${available}.`,
         'notFound',
       );
     }
@@ -71,8 +74,11 @@ export class VscodeLmProvider implements LLMProvider {
   }
 }
 
-export async function listCopilotModels(): Promise<vscode.LanguageModelChat[]> {
-  return vscode.lm.selectChatModels({ vendor: VENDOR });
+/** Every model VS Code offers, Copilot's first so an empty setting picks one of them. */
+export async function listVscodeModels(): Promise<vscode.LanguageModelChat[]> {
+  const models = await vscode.lm.selectChatModels();
+  const rank = (m: vscode.LanguageModelChat) => (m.vendor === PREFERRED_VENDOR ? 0 : 1);
+  return [...models].sort((a, b) => rank(a) - rank(b));
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
@@ -92,22 +98,22 @@ function toProviderError(error: unknown, signal: AbortSignal | undefined): Provi
     switch (error.code) {
       case vscode.LanguageModelError.NoPermissions.name:
         return new ProviderError(
-          'Patch Tutor is not allowed to use Copilot models. Run the command again and choose Allow.',
+          'Patch Tutor is not allowed to use this model. Run the command again and choose Allow.',
           'auth',
           { cause: error },
         );
       case vscode.LanguageModelError.Blocked.name:
         return new ProviderError(
-          'Copilot blocked the request, usually because a rate limit or quota was reached. Try again later.',
+          'The model provider blocked the request, usually because a rate limit or quota was reached. Try again later.',
           'rateLimit',
           { cause: error },
         );
       case vscode.LanguageModelError.NotFound.name:
-        return new ProviderError('The selected Copilot model is no longer available.', 'notFound', {
+        return new ProviderError('The selected model is no longer available.', 'notFound', {
           cause: error,
         });
     }
   }
   const message = error instanceof Error ? error.message : String(error);
-  return new ProviderError(`Copilot request failed: ${message}`, 'unknown', { cause: error });
+  return new ProviderError(`VS Code model request failed: ${message}`, 'unknown', { cause: error });
 }

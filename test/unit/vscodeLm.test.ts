@@ -9,10 +9,11 @@ type SendRequest = (
   token: { isCancellationRequested: boolean },
 ) => Promise<{ text: AsyncIterable<string> }>;
 
-function fakeModel(id: string, family: string, sendRequest?: SendRequest) {
+function fakeModel(id: string, family: string, sendRequest?: SendRequest, vendor = 'copilot') {
   return {
     id,
     family,
+    vendor,
     name: id,
     sendRequest: vi.fn(sendRequest ?? (async () => ({ text: stream(['O', 'K']) }))),
   };
@@ -41,12 +42,34 @@ describe('VscodeLmProvider', () => {
     selectChatModels.mockReset();
   });
 
-  it('asks only for Copilot models', async () => {
+  it('asks for models from every vendor', async () => {
     selectChatModels.mockResolvedValue([fakeModel('gpt-x', 'gpt')]);
 
     await new VscodeLmProvider('').complete(request);
 
-    expect(selectChatModels).toHaveBeenCalledWith({ vendor: 'copilot' });
+    expect(selectChatModels).toHaveBeenCalledWith();
+  });
+
+  it('prefers a Copilot model when no model is configured', async () => {
+    const other = fakeModel('o', 'fam-o', undefined, 'other-ext');
+    const copilot = fakeModel('c', 'fam-c');
+    selectChatModels.mockResolvedValue([other, copilot]);
+
+    await new VscodeLmProvider('').complete(request);
+
+    expect(copilot.sendRequest).toHaveBeenCalled();
+    expect(other.sendRequest).not.toHaveBeenCalled();
+  });
+
+  it('uses a model from another extension when it is configured', async () => {
+    const copilot = fakeModel('c', 'fam-c');
+    const other = fakeModel('o', 'fam-o', undefined, 'other-ext');
+    selectChatModels.mockResolvedValue([copilot, other]);
+
+    await new VscodeLmProvider('o').complete(request);
+
+    expect(other.sendRequest).toHaveBeenCalled();
+    expect(copilot.sendRequest).not.toHaveBeenCalled();
   });
 
   it('sends the system prompt first, then the user prompt, and joins the streamed reply', async () => {
@@ -89,13 +112,13 @@ describe('VscodeLmProvider', () => {
     expect(first.sendRequest).not.toHaveBeenCalled();
   });
 
-  it('reports notFound when Copilot has no models', async () => {
+  it('reports notFound when VS Code has no models', async () => {
     selectChatModels.mockResolvedValue([]);
 
     const error = await completeError(new VscodeLmProvider(''));
 
     expect(error.kind).toBe('notFound');
-    expect(error.message).toMatch(/Copilot/);
+    expect(error.message).toMatch(/No language models/);
   });
 
   it('lists available families when the configured model is missing', async () => {

@@ -33,7 +33,7 @@ suite('Patch Tutor extension', () => {
     }
   });
 
-  test('defaults to the Copilot provider', () => {
+  test('defaults to the VS Code models provider', () => {
     const config = vscode.workspace.getConfiguration('patchTutor');
     assert.strictEqual(config.get('provider'), 'vscodeLm');
     assert.strictEqual(config.get('model'), '');

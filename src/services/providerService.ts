@@ -3,7 +3,7 @@ import { ANTHROPIC_DEFAULT_MODEL, AnthropicProvider } from '../llm/anthropic';
 import { OLLAMA_DEFAULT_URL, OllamaProvider } from '../llm/ollama';
 import { OPENAI_PRESETS, OpenAiCompatibleProvider } from '../llm/openaiCompatible';
 import type { LLMProvider, ModelInfo, ProviderConfig, ProviderId } from '../llm/provider';
-import { listCopilotModels, VscodeLmProvider } from '../llm/vscodeLm';
+import { listVscodeModels, VscodeLmProvider } from '../llm/vscodeLm';
 import connectionTestPrompt from '../prompts/connection-test.md';
 
 export interface ProviderInfo {
@@ -22,8 +22,8 @@ export interface ProviderInfo {
 export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: 'vscodeLm',
-    label: 'GitHub Copilot',
-    detail: 'Uses your Copilot models through VS Code. No API key needed.',
+    label: 'VS Code models',
+    detail: 'GitHub Copilot or any model another extension adds to VS Code. No API key needed.',
     usesKey: false,
     usesBaseUrl: false,
     defaultBaseUrl: '',
@@ -184,10 +184,10 @@ export class ProviderService {
     signal?: AbortSignal,
   ): Promise<ModelInfo[]> {
     if (settings.provider === 'vscodeLm') {
-      return (await listCopilotModels()).map((m) => ({
+      return (await listVscodeModels()).map((m) => ({
         id: m.id,
         label: m.name,
-        detail: `${m.family} · ${m.maxInputTokens.toLocaleString()} input tokens`,
+        detail: `${m.vendor} · ${m.family} · ${m.maxInputTokens.toLocaleString()} input tokens`,
       }));
     }
     const provider = this.create(settings, keyOverride);

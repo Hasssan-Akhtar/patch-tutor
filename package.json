@@ -159,13 +159,13 @@
             "ollama"
           ],
           "enumItemLabels": [
-            "GitHub Copilot",
+            "VS Code models (Copilot and others)",
             "Anthropic",
             "OpenAI-compatible",
             "Ollama (local)"
           ],
           "enumDescriptions": [
-            "Copilot models through VS Code. No API key needed.",
+            "GitHub Copilot or any model another extension adds to VS Code. No API key needed.",
             "Claude models with your Anthropic API key.",
             "OpenAI, OpenRouter, Groq, LM Studio or any server with the OpenAI chat completions API.",
             "A model running locally in Ollama. Nothing leaves your machine."
@@ -176,7 +176,7 @@
         "patchTutor.model": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Model id for the provider. Leave empty for the provider's default (Anthropic: `claude-opus-5-5`; Copilot: the first available model). OpenAI-compatible servers and Ollama need a model name."
+          "markdownDescription": "Model id for the provider. Leave empty for the provider's default (Anthropic: `claude-opus-5-5`; VS Code models: a Copilot model if one is available, otherwise the first model). OpenAI-compatible servers and Ollama need a model name."
         },
         "patchTutor.contextTokenBudget": {
           "type": "number",
@@ -205,7 +205,7 @@
         "patchTutor.baseUrl": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Server URL for the **OpenAI-compatible** provider (for example `https://api.openai.com/v1`, `https://openrouter.ai/api/v1` or `http://localhost:1234/v1` for LM Studio) or for **Ollama** (default `http://localhost:11434`). Not used by Copilot or Anthropic."
+          "markdownDescription": "Server URL for the **OpenAI-compatible** provider (for example `https://api.openai.com/v1`, `https://openrouter.ai/api/v1` or `http://localhost:1234/v1` for LM Studio) or for **Ollama** (default `http://localhost:11434`). Not used by VS Code models or Anthropic."
         }
       }
     },
