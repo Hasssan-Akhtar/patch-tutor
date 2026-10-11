@@ -10,10 +10,6 @@
 Learn from the code you just wrote. Patch Tutor explains each change in your git
 working tree right on the code, then quizzes you on it.
 
-<p align="center">
-  <img src="media/demo.gif" alt="Explaining a change and taking a quiz in Patch Tutor" width="800">
-</p>
-
 ## Features
 
 - **Explain this change.** Every changed hunk gets an **Explain** button. The
