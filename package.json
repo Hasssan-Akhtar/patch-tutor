@@ -2,7 +2,7 @@
   "name": "patch-tutor",
   "displayName": "Patch Tutor",
   "description": "Turns your git changes into short lessons: inline explanations and quizzes on the code you changed.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "patch-tutor",
   "license": "MIT",
   "icon": "media/icon.png",

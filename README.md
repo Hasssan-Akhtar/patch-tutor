@@ -1,6 +1,6 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="media/logo-dark.png">
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Hasssan-Akhtar/patch-tutor/raw/HEAD/media/logo-dark.png">
     <img src="media/logo.png" alt="Patch Tutor" width="420">
   </picture>
 </p>
