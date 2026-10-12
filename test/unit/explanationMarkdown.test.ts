@@ -37,6 +37,13 @@ describe('explanationMarkdown', () => {
     expect(md).not.toContain('from cache');
   });
 
+  it('marks a revised explanation and invites questions', () => {
+    const md = explanationMarkdown(explanation, false, true);
+    expect(md).toContain('✏️ Revised after your reply');
+    expect(md).toContain('reply below');
+    expect(explanationMarkdown(explanation, false)).not.toContain('Revised');
+  });
+
   it('celebrates when there are no risks, and marks cached results', () => {
     const md = explanationMarkdown({ ...explanation, risks: [], concepts: [] }, true);
 

@@ -8,7 +8,11 @@ const DEPTH_LABEL: Record<Depth, string> = {
 };
 
 /** Markdown (with a little inline HTML for color) for an explanation comment. */
-export function explanationMarkdown(explanation: Explanation, fromCache: boolean): string {
+export function explanationMarkdown(
+  explanation: Explanation,
+  fromCache: boolean,
+  revised = false,
+): string {
   const safe = escapeModelText;
   const parts = [
     `> 💡 **TL;DR:** ${safe(explanation.summary)}`,
@@ -30,10 +34,16 @@ export function explanationMarkdown(explanation: Explanation, fromCache: boolean
     parts.push(`🧠 ${explanation.concepts.map((c, i) => pill(c, i)).join(' ')}`);
   }
 
-  const meta = [DEPTH_LABEL[explanation.depth], fromCache ? '⚡ from cache' : undefined]
+  const meta = [
+    DEPTH_LABEL[explanation.depth],
+    revised ? '✏️ Revised after your reply' : undefined,
+    fromCache ? '⚡ from cache' : undefined,
+  ]
     .filter(Boolean)
     .join(' · ');
-  parts.push(`---\n🎓 **Think you've got it?** Hit **Quiz me** above. · _${meta}_`);
+  parts.push(
+    `---\n🎓 **Think you've got it?** Hit **Quiz me** above, or reply below with a question. · _${meta}_`,
+  );
   return parts.join('\n\n');
 }
 

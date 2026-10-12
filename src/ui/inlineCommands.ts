@@ -4,6 +4,7 @@ import { EXPLAIN_PROMPT_VERSION } from '../services/explainService';
 import type { HunkService } from '../services/hunkService';
 import type { ChatView } from './chat/chatView';
 import type { InlineComments } from './comments';
+import type { FollowUpThreads } from './followUpThreads';
 import type { QuizThreads } from './quizThreads';
 import type { ThreadRegistry } from './threads';
 
@@ -18,6 +19,7 @@ export function registerInlineCommands(
   reports: ReportStore,
   chat: ChatView,
   modelKey: () => string,
+  followUps: FollowUpThreads,
 ): void {
   // Hover links pass the URI as a string; CodeLens passes a Uri.
   const locate = async (target: HunkTarget, hunkId: string) => {
@@ -61,6 +63,12 @@ export function registerInlineCommands(
     ),
     vscode.commands.registerCommand('patchTutor.thread.dismiss', (thread: vscode.CommentThread) =>
       threads.close(thread),
+    ),
+    vscode.commands.registerCommand('patchTutor.thread.refresh', (thread: vscode.CommentThread) =>
+      comments.refresh(thread),
+    ),
+    vscode.commands.registerCommand('patchTutor.chat.ask', (reply: vscode.CommentReply) =>
+      followUps.ask(reply),
     ),
     vscode.commands.registerCommand(
       'patchTutor.thread.reportWrong',

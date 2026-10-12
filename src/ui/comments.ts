@@ -31,11 +31,22 @@ export class InlineComments {
     }
   }
 
-  private async render(entry: ThreadEntry, depth: Depth): Promise<void> {
+  /** Regenerates a thread's explanation without the cache; the title bar's Refresh button. */
+  async refresh(thread: vscode.CommentThread): Promise<void> {
+    const entry = this.threads.find(thread);
+    if (entry) {
+      await this.render(entry, entry.depth, true);
+    }
+  }
+
+  private async render(entry: ThreadEntry, depth: Depth, skipCache = false): Promise<void> {
     entry.explainController?.abort();
     const controller = new AbortController();
     entry.explainController = controller;
     entry.depth = depth;
+    // A new explanation starts a new conversation.
+    this.threads.resetChat(entry);
+    entry.explained = undefined;
     entry.explanation = this.threads.tutorComment(
       '$(loading~spin) Reading your change and the code around it…',
     );
@@ -48,6 +59,7 @@ export class InlineComments {
           this.explainService.explainHunk(entry.hunk, depth, {
             signal: controller.signal,
             repoRoot: entry.repoRoot,
+            skipCache,
           }),
       );
       if (result.kind === 'explanation') {
@@ -55,6 +67,7 @@ export class InlineComments {
           explanationMarkdown(result.explanation, result.fromCache),
         );
         entry.title = threadTitle(result.explanation);
+        entry.explained = result.explanation;
       } else {
         entry.explanation = this.threads.tutorComment(rawExplanationMarkdown(result.text));
       }

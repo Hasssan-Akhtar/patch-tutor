@@ -14,6 +14,7 @@ import { ReportStore } from './learning/reports';
 import { metered } from './llm/metered';
 import type { LLMProvider } from './llm/provider';
 import { ExplainService } from './services/explainService';
+import { FollowUpService } from './services/followUpService';
 import { HunkService } from './services/hunkService';
 import { QuizService } from './services/quizService';
 import { ProviderService } from './services/providerService';
@@ -21,6 +22,7 @@ import { HUNK_DOCUMENT_SELECTOR, HunkCodeLensProvider } from './ui/codeLens';
 import { InlineComments } from './ui/comments';
 import { HunkDecorations } from './ui/decorations';
 import { registerExplainCommands } from './ui/explainCommands';
+import { FollowUpThreads } from './ui/followUpThreads';
 import { HunkHoverProvider } from './ui/hover';
 import { registerInlineCommands } from './ui/inlineCommands';
 import { registerProviderCommands } from './ui/providerCommands';
@@ -75,6 +77,10 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
   const hunks = new HunkService();
   const threads = new ThreadRegistry(context.extensionUri);
   const comments = new InlineComments(threads, explainService);
+  const followUps = new FollowUpThreads(
+    threads,
+    new FollowUpService({ createProvider: provider, buildContext, maxOutputTokens }),
+  );
   const transcripts = new TranscriptStore(
     vscode.Uri.joinPath(context.globalStorageUri, 'quizzes.json').fsPath,
   );
@@ -147,6 +153,7 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
     new ReportStore(vscode.Uri.joinPath(context.globalStorageUri, 'reports.jsonl').fsPath),
     chat,
     modelKey,
+    followUps,
   );
 
   if (context.extensionMode === vscode.ExtensionMode.Development) {

@@ -65,7 +65,10 @@ function setup(reply: string | string[]) {
 
 describe('FollowUpSchema', () => {
   it('accepts an answer with or without a revision', () => {
-    expect(FollowUpSchema.parse({ answer: 'Yes.' })).toEqual({ answer: 'Yes.', revised: undefined });
+    expect(FollowUpSchema.parse({ answer: 'Yes.' })).toEqual({
+      answer: 'Yes.',
+      revised: undefined,
+    });
     expect(FollowUpSchema.parse({ answer: 'Fixed.', revised: explanation }).revised).toEqual(
       explanation,
     );

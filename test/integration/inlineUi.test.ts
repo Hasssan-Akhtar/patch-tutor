@@ -65,11 +65,18 @@ async function waitFor<T>(read: () => Promise<T | undefined>, what: string): Pro
   throw new Error(`Timed out waiting for ${what}`);
 }
 
+function bodies(thread: vscode.CommentThread): string[] {
+  return thread.comments.map((c) =>
+    c.body instanceof vscode.MarkdownString ? c.body.value : c.body,
+  );
+}
+
 suite('inline UI', () => {
   let dir: string;
   let file: vscode.Uri;
   let api: PatchTutorTestApi;
   const requests: string[] = [];
+  let followUpReply: object = { answer: 'Because arrays know their length.' };
 
   suiteSetup(async () => {
     dir = makeTempDir('patch-tutor-inline-');
@@ -100,6 +107,9 @@ suite('inline UI', () => {
         }
         if (request.system.includes('writing a short quiz')) {
           return JSON.stringify(QUIZ);
+        }
+        if (request.system.includes('follow-up question')) {
+          return JSON.stringify(followUpReply);
         }
         return JSON.stringify(EXPLANATION);
       },
@@ -167,7 +177,7 @@ suite('inline UI', () => {
     assert.strictEqual(others.length, 0);
     assert.strictEqual(thread.range?.start.line, 11);
     assert.strictEqual(thread.range?.end.line, 11);
-    assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
+    assert.strictEqual(thread.contextValue, 'patchTutorThread standard chat');
     const body = thread.comments[0]?.body;
     assert.ok(body instanceof vscode.MarkdownString);
     assert.match(body.value, /\*\*TL;DR:\*\* Counts the items\./);
@@ -178,14 +188,53 @@ suite('inline UI', () => {
     assert.strictEqual(api.threads.threadsFor(file).length, 0);
   });
 
+  test('Replying asks a follow-up; a correction revises the explanation; Refresh starts over', async () => {
+    const document = await vscode.workspace.openTextDocument(file);
+    const hunk = (await api.hunks.getHunks(document))?.hunks.find((h) =>
+      h.added.includes(ADDED_LINE),
+    );
+    assert.ok(hunk);
+    await vscode.commands.executeCommand('patchTutor.explainHunk', file, hunk.id);
+    const [thread] = api.threads.threadsFor(file);
+    assert.ok(thread);
+    assert.strictEqual(thread.canReply, true);
+
+    followUpReply = { answer: 'Because arrays know their `length`.' };
+    await vscode.commands.executeCommand('patchTutor.chat.ask', { thread, text: 'Why length?' });
+    // User comments are plain text, which VS Code escapes (spaces become &nbsp;).
+    assert.match(bodies(thread).at(-2) ?? '', /Why(&nbsp;| )length\?/);
+    assert.match(bodies(thread).at(-1) ?? '', /arrays know their/);
+    assert.strictEqual(thread.contextValue, 'patchTutorThread standard chat started');
+    assert.match(requests.at(-1) ?? '', /Why length\?/);
+
+    followUpReply = {
+      answer: 'You are right.',
+      revised: { ...EXPLANATION, summary: 'Counts items in one pass.' },
+    };
+    await vscode.commands.executeCommand('patchTutor.chat.ask', { thread, text: 'Really?' });
+    assert.match(bodies(thread)[0] ?? '', /Revised after your reply/);
+    assert.match(bodies(thread)[0] ?? '', /Counts items in one pass/);
+    assert.strictEqual(thread.label, '💡 Counts items in one pass.');
+    assert.match(requests.at(-1) ?? '', /Developer: Why length\?/);
+
+    // A quiz waiting for an answer owns the reply box.
+    await vscode.commands.executeCommand('patchTutor.thread.quiz', thread);
+    assert.strictEqual(thread.contextValue, 'patchTutorThread standard quiz');
+
+    await vscode.commands.executeCommand('patchTutor.thread.refresh', thread);
+    assert.doesNotMatch(bodies(thread)[0] ?? '', /Revised/);
+    assert.match(bodies(thread)[0] ?? '', /Counts the items\./);
+    assert.ok(!bodies(thread).some((b) => /Why(&nbsp;| )length/.test(b)), 'conversation cleared');
+
+    await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
+  });
+
   test('Quiz me asks questions one at a time, grades answers and summarizes', async () => {
     const document = await vscode.workspace.openTextDocument(file);
     const hunk = (await api.hunks.getHunks(document))?.hunks.find((h) =>
       h.added.includes(ADDED_LINE),
     );
     assert.ok(hunk);
-    const bodies = (thread: vscode.CommentThread) =>
-      thread.comments.map((c) => (c.body instanceof vscode.MarkdownString ? c.body.value : c.body));
 
     await vscode.commands.executeCommand('patchTutor.explainHunk', file, hunk.id);
     await vscode.commands.executeCommand('patchTutor.quizHunk', file, hunk.id);
@@ -214,8 +263,9 @@ suite('inline UI', () => {
       bodies(thread).at(-1) ?? '',
       /Quiz done![\s\S]*1\/1 correct[\s\S]*peeked at 1, skipped 1/,
     );
-    assert.strictEqual(thread.canReply, false);
-    assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
+    // Once the quiz is done, the reply box asks follow-ups about the explanation again.
+    assert.strictEqual(thread.canReply, true);
+    assert.strictEqual(thread.contextValue, 'patchTutorThread standard chat');
 
     // Progress: correct (1) + revealed (0) for the same concept; the skip is logged but not scored.
     const [concept, ...others] = await waitFor(async () => {
