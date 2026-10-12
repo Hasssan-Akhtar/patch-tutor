@@ -96,6 +96,17 @@
         "icon": "$(close)"
       },
       {
+        "command": "patchTutor.thread.refresh",
+        "title": "Refresh explanation",
+        "category": "Patch Tutor",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "patchTutor.chat.ask",
+        "title": "Ask",
+        "category": "Patch Tutor"
+      },
+      {
         "command": "patchTutor.quiz.submit",
         "title": "Submit answer",
         "category": "Patch Tutor"
@@ -319,6 +330,14 @@
         {
           "command": "patchTutor.quiz.moveToChat",
           "when": "false"
+        },
+        {
+          "command": "patchTutor.thread.refresh",
+          "when": "false"
+        },
+        {
+          "command": "patchTutor.chat.ask",
+          "when": "false"
         }
       ],
       "comments/commentThread/title": [
@@ -333,23 +352,28 @@
           "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread (simple|standard)\\b/"
         },
         {
-          "command": "patchTutor.thread.quiz",
+          "command": "patchTutor.thread.refresh",
           "group": "inline@3",
+          "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
+        },
+        {
+          "command": "patchTutor.thread.quiz",
+          "group": "inline@4",
           "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
         },
         {
           "command": "patchTutor.quiz.moveToChat",
           "when": "commentController == patch-tutor && commentThread =~ /\\bquiz$/",
-          "group": "inline@4"
+          "group": "inline@5"
         },
         {
           "command": "patchTutor.thread.reportWrong",
-          "group": "inline@5",
+          "group": "inline@7",
           "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
         },
         {
           "command": "patchTutor.thread.dismiss",
-          "group": "inline@6",
+          "group": "inline@8",
           "when": "commentController == patch-tutor && commentThread =~ /^patchTutorThread/"
         }
       ],
@@ -373,6 +397,11 @@
           "command": "patchTutor.quiz.moveToChat",
           "group": "inline@4",
           "when": "commentController == patch-tutor && commentThread =~ /\\bquiz$/"
+        },
+        {
+          "command": "patchTutor.chat.ask",
+          "group": "inline@1",
+          "when": "commentController == patch-tutor && commentThread =~ / chat( started)?$/"
         }
       ],
       "view/title": [

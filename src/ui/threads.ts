@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import type { Hunk } from '../git/hunk';
 import { ProviderError } from '../llm/provider';
-import type { Depth } from '../llm/schemas';
+import type { Depth, Explanation } from '../llm/schemas';
+import type { ExplanationChat } from './explanationChat';
 import { hunkRange } from './hunkRange';
 import type { QuizMessage, QuizRun } from './quizRun';
 
@@ -16,12 +17,20 @@ export interface ThreadEntry {
   quiz?: QuizRun;
   /** Set when the quiz was moved to the chat view; the thread then shows a pointer instead. */
   quizInChat?: boolean;
+  /** The explanation shown, when it parsed; follow-up chat needs it. */
+  explained?: Explanation;
+  chat?: ExplanationChat;
+  /** Set when the chat was moved to the chat view; the thread then shows a pointer instead. */
+  chatInChat?: boolean;
   /** Short messages appended after everything else, e.g. thanks for a report. */
   notes?: vscode.Comment[];
 }
 
 const MOVED_TO_CHAT =
   '💬 **This quiz continues in the Patch Tutor chat** in the sidebar. Your answers so far moved with it.';
+
+const CHAT_MOVED_TO_CHAT =
+  '💬 **This conversation continues in the Patch Tutor chat** in the sidebar.';
 
 export const DEFAULT_TITLE = '💡 Patch Tutor';
 
@@ -45,8 +54,8 @@ export class ThreadRegistry implements vscode.Disposable {
       iconPath: vscode.Uri.joinPath(extensionUri, 'media', 'icon.svg'),
     };
     this.controller.options = {
-      prompt: 'Answer the question…',
-      placeHolder: 'Type your answer. Short is fine.',
+      prompt: 'Answer the quiz or ask a follow-up…',
+      placeHolder: 'Ask about this change, or answer the quiz question.',
     };
   }
 
@@ -78,7 +87,7 @@ export class ThreadRegistry implements vscode.Disposable {
 
   /** Writes an entry's comments, title, buttons and reply box to its thread. */
   render(entry: ThreadEntry): void {
-    const { thread, quiz } = entry;
+    const { thread, quiz, chat } = entry;
     const inThread = !!quiz && !entry.quizInChat;
     // " quiz" enables Move to chat and the reply-box buttons while a quiz is in progress here.
     const active = inThread && !quiz.done;
@@ -88,14 +97,29 @@ export class ThreadRegistry implements vscode.Disposable {
         ? quiz.messages.map((m) => this.messageComment(m))
         : [this.tutorComment(MOVED_TO_CHAT)];
     }
+    let chatComments: vscode.Comment[] = [];
+    if (chat) {
+      chatComments = entry.chatInChat
+        ? [this.tutorComment(CHAT_MOVED_TO_CHAT)]
+        : chat.messages.map((m) => this.messageComment(m));
+    }
+    // Follow-ups need a parsed explanation, and wait while a quiz is taking answers here.
+    const canChat = !!entry.explained && !active && !entry.chatInChat;
+    let mode = '';
+    if (active) {
+      mode = ' quiz';
+    } else if (canChat) {
+      mode = chat && chat.messages.length > 0 ? ' chat started' : ' chat';
+    }
     thread.label = entry.title;
     thread.comments = [
       ...(entry.explanation ? [entry.explanation] : []),
+      ...chatComments,
       ...quizComments,
       ...(entry.notes ?? []),
     ];
-    thread.contextValue = `patchTutorThread ${entry.depth}${active ? ' quiz' : ''}`;
-    thread.canReply = inThread && quiz.canAnswer;
+    thread.contextValue = `patchTutorThread ${entry.depth}${mode}`;
+    thread.canReply = active ? quiz.canAnswer : canChat && !chat?.busy;
     thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
   }
 
@@ -122,6 +146,37 @@ export class ThreadRegistry implements vscode.Disposable {
     return entry.quiz;
   }
 
+  /** Points an entry at a new follow-up chat, re-rendering whenever it changes. */
+  attachChat(entry: ThreadEntry, chat: ExplanationChat): void {
+    this.resetChat(entry);
+    entry.chat = chat;
+    chat.onDidChange(() => {
+      if (entry.chat === chat) {
+        this.render(entry);
+      }
+    });
+    this.render(entry);
+  }
+
+  /** Hands the entry's chat to the chat view; the thread keeps a pointer to it. */
+  moveChatToChat(entry: ThreadEntry): ExplanationChat | undefined {
+    if (!entry.chat || entry.chatInChat || entry.chat.messages.length === 0) {
+      return undefined;
+    }
+    entry.chatInChat = true;
+    this.render(entry);
+    return entry.chat;
+  }
+
+  /** Drops the entry's chat; one that moved to the chat view keeps going there. */
+  resetChat(entry: ThreadEntry): void {
+    if (entry.chat && !entry.chatInChat) {
+      entry.chat.cancel();
+    }
+    entry.chat = undefined;
+    entry.chatInChat = false;
+  }
+
   private messageComment(message: QuizMessage): vscode.Comment {
     if (message.from === 'you') {
       return this.userComment(message.text);
@@ -141,6 +196,9 @@ export class ThreadRegistry implements vscode.Disposable {
         // A quiz that moved to the chat keeps going there.
         if (!entry.quizInChat) {
           entry.quiz?.cancel();
+        }
+        if (!entry.chatInChat) {
+          entry.chat?.cancel();
         }
         this.entries.delete(key);
       }
@@ -177,6 +235,9 @@ export class ThreadRegistry implements vscode.Disposable {
       e.explainController?.abort();
       if (!e.quizInChat) {
         e.quiz?.cancel();
+      }
+      if (!e.chatInChat) {
+        e.chat?.cancel();
       }
     });
     this.controller.dispose();
