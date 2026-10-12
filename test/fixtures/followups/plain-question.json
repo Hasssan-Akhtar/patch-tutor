@@ -1,0 +1,14 @@
+{
+  "diff": "apply-discount.diff",
+  "explanation": {
+    "summary": "Rejects discount percentages outside 0 to 100.",
+    "whatChanged": "`applyDiscount` now throws a `RangeError` when `percent` is below 0 or above 100.",
+    "howItWorks": "A guard checks `percent` before the price is calculated and throws for out-of-range values.",
+    "whyItWorks": "Invalid percentages stop before they can produce a negative or inflated price.",
+    "concepts": ["input-validation", "error-handling"],
+    "risks": ["Callers that passed out-of-range percentages now get an exception instead of a price."],
+    "depth": "standard"
+  },
+  "message": "give me the whole function syntax, just add dummy values so I can see what will be there and what will happen",
+  "expectRevised": false
+}

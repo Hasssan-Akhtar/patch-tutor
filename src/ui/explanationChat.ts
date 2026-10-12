@@ -7,7 +7,7 @@ import { failureMarkdown, type QuizMessage } from './quizRun';
 
 export type AskResult = 'answered' | 'empty' | 'not-ready' | 'failed';
 
-const REVISED_NOTE = '✏️ _I corrected the explanation above._';
+const REVISED_NOTE = '✏️ **I corrected the explanation above.**';
 
 /**
  * A follow-up conversation about one explanation. Like QuizRun it knows
@@ -88,7 +88,10 @@ export class ExplanationChat {
         this.revised = true;
       }
       this.messages.pop();
-      this.messages.push({ from: 'tutor', text: answerMarkdown(result.answer, !!result.revised) });
+      this.messages.push({
+        from: 'tutor',
+        text: answerMarkdown(result.answer, result.revised && result.mistake),
+      });
     } catch (error) {
       if (this.cancelled) {
         return 'failed';
@@ -124,7 +127,8 @@ export class ExplanationChat {
   }
 }
 
-function answerMarkdown(answer: string, revised: boolean): string {
+/** The answer, plus what was corrected when the reply revised the explanation. */
+function answerMarkdown(answer: string, mistake: string | undefined): string {
   const text = escapeModelText(answer.trim());
-  return revised ? `${text}\n\n${REVISED_NOTE}` : text;
+  return mistake ? `${text}\n\n${REVISED_NOTE} ${escapeModelText(mistake)}` : text;
 }

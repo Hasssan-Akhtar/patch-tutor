@@ -78,7 +78,14 @@ export async function runFollowUpEvals(
           `**Expected revision:** ${fixture.expectRevised ? 'yes' : 'no'} · **Got:** ${got}`,
           '',
           `**Answer:** ${result.answer}`,
-          ...(result.revised ? ['', `**Revised why it works:** ${result.revised.whyItWorks}`] : []),
+          ...(result.revised
+            ? [
+                '',
+                `**Mistake named:** ${result.mistake}`,
+                '',
+                `**Revised why it works:** ${result.revised.whyItWorks}`,
+              ]
+            : []),
         );
       }
     },
