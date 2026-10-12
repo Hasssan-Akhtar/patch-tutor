@@ -98,13 +98,28 @@ describe('ExplanationChat', () => {
 
   it('replaces the explanation when the tutor revises it, keeping its depth', async () => {
     const revised = { ...explanation, whyItWorks: 'Same calls, smaller rows.', depth: 'deep' };
-    const { chat } = setup(reply({ answer: 'You are right.', revised }));
+    const { chat } = setup(
+      reply({ answer: 'You are right.', mistake: 'It claimed <b>fewer</b> calls.', revised }),
+    );
 
     await chat.ask('It does not reduce calls, does it?');
 
     expect(chat.revised).toBe(true);
     expect(chat.explanation).toEqual({ ...revised, depth: 'standard' });
-    expect(chat.messages.at(-1)?.text).toMatch(/You are right\.[\s\S]*corrected the explanation/);
+    expect(chat.messages.at(-1)?.text).toBe(
+      'You are right.\n\n✏️ **I corrected the explanation above.** It claimed &lt;b&gt;fewer&lt;/b&gt; calls.',
+    );
+  });
+
+  it('leaves the explanation alone when a reply carries a revision but no mistake', async () => {
+    const revised = { ...explanation, whyItWorks: 'Reworded.' };
+    const { chat } = setup(reply({ answer: 'Step 1: …', revised }));
+
+    await chat.ask('Give me a dry run');
+
+    expect(chat.revised).toBe(false);
+    expect(chat.explanation).toEqual(explanation);
+    expect(chat.messages.at(-1)?.text).toBe('Step 1: …');
   });
 
   it('escapes HTML in answers', async () => {

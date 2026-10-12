@@ -212,6 +212,7 @@ suite('inline UI', () => {
 
     followUpReply = {
       answer: 'You are right.',
+      mistake: 'It missed that the count is per item.',
       revised: { ...EXPLANATION, summary: 'Counts items in one pass.' },
     };
     await vscode.commands.executeCommand('patchTutor.chat.ask', { thread, text: 'Really?' });

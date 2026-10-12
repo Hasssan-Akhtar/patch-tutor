@@ -137,11 +137,43 @@ describe('FollowUpService', () => {
     expect(buildContext).toHaveBeenCalledTimes(1);
   });
 
-  it('returns a revision when the tutor corrects itself', async () => {
+  it('returns a revision when the tutor names the mistake it corrects', async () => {
     const revised = { ...explanation, whyItWorks: 'Callers get 0 for empty carts.' };
-    const { service, request } = setup(JSON.stringify({ answer: 'You are right.', revised }));
+    const mistake = 'It said nothing else runs, but callers still use the result.';
+    const { service, request } = setup(
+      JSON.stringify({ answer: 'You are right.', mistake, revised }),
+    );
 
-    expect((await service.ask(request)).revised).toEqual(revised);
+    const result = await service.ask(request);
+    expect(result.revised).toEqual(revised);
+    expect(result.mistake).toBe(mistake);
+  });
+
+  // Small models attach a "revision" to plain questions like "give me a dry run".
+  it('ignores a revision that names no mistake', async () => {
+    const revised = { ...explanation, whyItWorks: 'Reworded.' };
+    for (const mistake of [undefined, null, '', '  ']) {
+      const { service, request } = setup(
+        JSON.stringify({ answer: 'A dry run…', mistake, revised }),
+      );
+      const result = await service.ask(request);
+      expect(result.revised).toBeUndefined();
+      expect(result.mistake).toBeUndefined();
+    }
+  });
+
+  it('ignores a revision that only copies the explanation back', async () => {
+    const copy = {
+      ...explanation,
+      summary: `  ${explanation.summary} `,
+      depth: 'deep',
+      concepts: ['Edge-Cases'],
+    };
+    const { service, request } = setup(
+      JSON.stringify({ answer: 'Here it is.', mistake: 'None really.', revised: copy }),
+    );
+
+    expect((await service.ask(request)).revised).toBeUndefined();
   });
 
   it('keeps a valid answer when only the revision is malformed', async () => {

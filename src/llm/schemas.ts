@@ -61,6 +61,11 @@ export type Grade = z.infer<typeof GradeSchema>;
 
 export const FollowUpSchema = z.object({
   answer: z.string().min(1),
+  /** What was wrong in the explanation; a revision without one is ignored. */
+  mistake: z
+    .string()
+    .nullish()
+    .transform((value) => value?.trim() || undefined),
   // Some models send null instead of leaving the field out.
   revised: ExplanationSchema.nullish().transform((value) => value ?? undefined),
 });

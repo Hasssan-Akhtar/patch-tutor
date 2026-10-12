@@ -1,0 +1,11 @@
+diff --git a/src/pricing.ts b/src/pricing.ts
+index 5555555..6666666 100644
+--- a/src/pricing.ts
++++ b/src/pricing.ts
+@@ -1,3 +1,6 @@
+ export function applyDiscount(price: number, percent: number): number {
++  if (percent < 0 || percent > 100) {
++    throw new RangeError(`percent must be between 0 and 100, got ${percent}`)
++  }
+   return price * (1 - percent / 100)
+ }

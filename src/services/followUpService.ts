@@ -43,6 +43,8 @@ export interface FollowUpResult {
   context: HunkContext;
   answer: string;
   revised?: Explanation;
+  /** What the revision corrects; set only with `revised`. */
+  mistake?: string;
   /** False when the reply never matched the schema and `answer` is the raw text. */
   structured: boolean;
 }
@@ -71,13 +73,33 @@ export class FollowUpService {
       const answer = salvaged.ok ? salvaged.value.answer : result.raw.trim();
       return { context, answer, structured: false };
     }
+    const { answer, mistake, revised } = result.value;
+    // Small models attach a revision to plain questions, so only a named mistake
+    // that actually changes the explanation counts as a correction.
+    const corrected =
+      mistake && revised && !sameExplanation(revised, request.explanation) ? revised : undefined;
     return {
       context,
-      answer: result.value.answer,
-      revised: result.value.revised,
+      answer,
+      revised: corrected,
+      mistake: corrected && mistake,
       structured: true,
     };
   }
+}
+
+/** True when two explanations say the same thing, ignoring spacing, case of tags and depth. */
+function sameExplanation(a: Explanation, b: Explanation): boolean {
+  const text = (e: Explanation) =>
+    [
+      e.summary,
+      e.whatChanged,
+      e.howItWorks,
+      e.whyItWorks,
+      ...e.risks,
+      ...e.concepts.map((c) => c.toLowerCase()),
+    ].map((s) => s.trim().replace(/\s+/g, ' '));
+  return JSON.stringify(text(a)) === JSON.stringify(text(b));
 }
 
 export function buildFollowUpUserMessage(request: FollowUpRequest, context: HunkContext): string {
