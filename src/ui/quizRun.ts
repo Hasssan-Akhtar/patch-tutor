@@ -127,7 +127,7 @@ export class QuizRun {
         return;
       }
       this.messages.pop();
-      this.messages.push({ from: 'tutor', text: failure('write a quiz', error) });
+      this.messages.push({ from: 'tutor', text: failureMarkdown('write a quiz', error) });
     }
     this.busy = false;
     this.changed();
@@ -178,7 +178,7 @@ export class QuizRun {
       }
       // Keep the question open so the answer can be sent again.
       this.messages.pop();
-      this.messages.push({ from: 'tutor', text: failure('check your answer', error) });
+      this.messages.push({ from: 'tutor', text: failureMarkdown('check your answer', error) });
       result = 'failed';
     }
     this.busy = false;
@@ -232,7 +232,7 @@ export class QuizRun {
   }
 }
 
-function failure(what: string, error: unknown): string {
+export function failureMarkdown(what: string, error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return `😕 **Couldn't ${what}.** ${escapeModelText(message)}\n\nCheck **Patch Tutor: Test connection**, then try again.`;
 }
