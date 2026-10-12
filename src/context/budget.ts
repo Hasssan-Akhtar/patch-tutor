@@ -7,6 +7,8 @@ export interface ContextSection {
   priority: number;
   /** Trimmed to fit instead of dropped when it is the next most valuable section. */
   truncatable?: boolean;
+  /** Code fence language in the prompt; defaults to the file's language. */
+  language?: string;
 }
 
 export interface BudgetResult {

@@ -161,6 +161,25 @@ describe('buildExplainUserMessage', () => {
     expect(message).toContain('(deleted): this whole file was deleted');
   });
 
+  it('fences each section in its own language when it has one', () => {
+    const message = buildExplainUserMessage(hunk, 'standard', {
+      ...context,
+      sections: [
+        ...context.sections,
+        {
+          title: 'Other changes in this file',
+          text: '@@ -9 +9 @@\n+log()',
+          priority: 1,
+          language: 'diff',
+        },
+      ],
+    });
+    expect(message).toContain('```javascript\nfunction total() {}\n```');
+    expect(message).toContain(
+      '### Other changes in this file\n\n```diff\n@@ -9 +9 @@\n+log()\n```',
+    );
+  });
+
   it('says when there is no extra context', () => {
     const message = buildExplainUserMessage(hunk, 'standard', {
       ...context,

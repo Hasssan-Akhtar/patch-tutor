@@ -16,7 +16,7 @@ export function explanationMarkdown(
   const safe = escapeModelText;
   const parts = [
     `> 💡 **TL;DR:** ${safe(explanation.summary)}`,
-    `${label('🔍', 'What changed', COLORS.blue)} ${safe(explanation.whatChanged)}`,
+    `${label('🔍', 'What changed', COLORS.blue)}${field(safe(explanation.whatChanged))}`,
     `${label('⚙️', 'How it works', COLORS.green)} ${safe(explanation.howItWorks)}`,
     `${label('🎯', 'Why it works', COLORS.purple)} ${safe(explanation.whyItWorks)}`,
   ];
@@ -45,6 +45,11 @@ export function explanationMarkdown(
     `---\n🎓 **Think you've got it?** Hit **Quiz me** above, or reply below with a question. · _${meta}_`,
   );
   return parts.join('\n\n');
+}
+
+/** A list of changes goes on its own lines below the label; prose follows the label inline. */
+function field(text: string): string {
+  return /^\s*[-*] /m.test(text) ? `\n\n${text.trim()}` : ` ${text}`;
 }
 
 /** Shown when the model's reply never matched the schema; still useful, just unstructured. */

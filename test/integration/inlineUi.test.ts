@@ -183,6 +183,9 @@ suite('inline UI', () => {
     assert.match(body.value, /\*\*TL;DR:\*\* Counts the items\./);
     assert.strictEqual(thread.label, '💡 Counts the items.');
     assert.ok(requests.some((r) => r.includes(`+${ADDED_LINE}`)));
+    // The file's other hunk is context, so the model knows about it without explaining it.
+    const sent = requests.find((r) => r.includes(`+${ADDED_LINE}`)) ?? '';
+    assert.match(sent, /### Other changes in this file[^\n]*\n\n```diff\n@@[^\n]*\n\+\/\/ totals/);
 
     await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
     assert.strictEqual(api.threads.threadsFor(file).length, 0);
