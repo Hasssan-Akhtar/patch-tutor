@@ -112,6 +112,38 @@ describe('model picker', () => {
     expect(lastForm()).toMatchObject({ model: 'claude-custom-2' });
   });
 
+  it('names the first listed model as the default for VS Code models', () => {
+    openSettings('');
+    const vscodeLm = {
+      id: 'vscodeLm',
+      label: 'VS Code models',
+      detail: 'Copilot.',
+      usesKey: false,
+      usesBaseUrl: false,
+      defaultBaseUrl: '',
+      defaultModel: '',
+      keySaved: false,
+    };
+    const base = state('');
+    send({
+      type: 'state',
+      state: {
+        ...base,
+        settings: {
+          ...base.settings,
+          active: { provider: 'vscodeLm', model: '', baseUrl: '' },
+          providers: [vscodeLm],
+          version: 2,
+        },
+      },
+    });
+    send({ type: 'models', provider: 'vscodeLm', models: [{ id: 'gpt-x', label: 'GPT X' }] });
+
+    const select = $<HTMLSelectElement>('model-select');
+    expect(select.value).toBe('');
+    expect(select.options[0]?.textContent).toBe('Default (GPT X)');
+  });
+
   it('falls back to a text field when no models are listed', () => {
     openSettings('my-model');
     send({ type: 'models', provider: 'anthropic', models: [], error: 'HTTP 400' });
