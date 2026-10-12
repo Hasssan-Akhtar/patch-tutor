@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
 import type { Window as DomWindow, HTMLButtonElement, HTMLTextAreaElement } from 'happy-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { chatShellHtml, type ChatState, type QuizPanel } from '../../src/ui/chat/chatHtml';
+import {
+  chatShellHtml,
+  messageHtml,
+  type ChatState,
+  type QuizPanel,
+} from '../../src/ui/chat/chatHtml';
+import { escapeModelText } from '../../src/ui/markdownStyle';
 
 // DOM types come from happy-dom so the project itself stays without the DOM lib.
 const window = globalThis as unknown as DomWindow;
@@ -77,5 +83,19 @@ describe('chat view follow-ups', () => {
     expect($<HTMLButtonElement>('reveal').hidden).toBe(false);
     expect($<HTMLButtonElement>('skip').hidden).toBe(false);
     expect($<HTMLButtonElement>('submit').textContent).toBe('Submit');
+  });
+});
+
+describe('follow-up answers in the chat view', () => {
+  it('renders a dry run code block as code, not as raw text', () => {
+    const answer =
+      'Dry run:\n\n```javascript\nconst price = 100;\nif (a < b) {}\n```\n\n1. Returns `80`.';
+    const html = messageHtml({ from: 'tutor', text: escapeModelText(answer) }).html;
+
+    expect(html).toContain(
+      '<pre><code class="language-javascript">const price = 100;\nif (a &lt; b) {}\n</code></pre>',
+    );
+    expect(html).toContain('<ol>');
+    expect(html).not.toContain('```');
   });
 });
