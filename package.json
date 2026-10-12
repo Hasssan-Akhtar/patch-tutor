@@ -62,6 +62,11 @@
         "category": "Patch Tutor"
       },
       {
+        "command": "patchTutor.dev.runFollowUpEvals",
+        "title": "Run follow-up evals (dev)",
+        "category": "Patch Tutor"
+      },
+      {
         "command": "patchTutor.explainHunk",
         "title": "Explain this change",
         "category": "Patch Tutor"
@@ -291,6 +296,10 @@
       "commandPalette": [
         {
           "command": "patchTutor.dev.runPromptEvals",
+          "when": "patchTutor.devMode"
+        },
+        {
+          "command": "patchTutor.dev.runFollowUpEvals",
           "when": "patchTutor.devMode"
         },
         {

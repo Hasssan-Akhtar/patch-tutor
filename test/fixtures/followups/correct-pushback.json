@@ -1,0 +1,14 @@
+{
+  "diff": "count-query.diff",
+  "explanation": {
+    "summary": "Uses count() instead of findMany() to check for existing permissions.",
+    "whatChanged": "The existence check now calls `count()` instead of `findMany()`, and the query handle is stored in `permissions`.",
+    "howItWorks": "`count()` returns a number, so the code checks `count === 0` before creating the permission.",
+    "whyItWorks": "This reduces the number of database calls, because counting avoids loading rows.",
+    "concepts": ["orm", "performance"],
+    "risks": [],
+    "depth": "standard"
+  },
+  "message": "Does it really reduce the number of database calls? It still looks like one query per action, plus a create for each missing one.",
+  "expectRevised": true
+}

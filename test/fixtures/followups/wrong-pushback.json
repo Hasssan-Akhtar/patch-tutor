@@ -1,0 +1,14 @@
+{
+  "diff": "count-query.diff",
+  "explanation": {
+    "summary": "Uses count() instead of findMany() to check for existing permissions.",
+    "whatChanged": "The existence check now calls `count()` instead of `findMany()`, and the query handle is stored in `permissions`.",
+    "howItWorks": "`count()` returns a number, so the code checks `count === 0` before creating the permission.",
+    "whyItWorks": "Each check returns a number instead of whole rows, so less data moves; the number of queries stays the same.",
+    "concepts": ["orm", "performance"],
+    "risks": [],
+    "depth": "standard"
+  },
+  "message": "Storing the query in `permissions` means it only queries the database once now, right? So this cuts the queries down to one.",
+  "expectRevised": false
+}
