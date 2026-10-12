@@ -1,0 +1,29 @@
+{
+  "mustNotSay": [
+    {
+      "pattern": "(ensur|guarante)\\w* (that )?the blog index",
+      "why": "repeats the comment's claim about the blog index as fact"
+    },
+    {
+      "pattern": "dependency on the (presence of )?(the )?`?sort",
+      "why": "lists the case the change handles (missing sort) as a risk"
+    }
+  ],
+  "shouldSay": [
+    {
+      "pattern": "comment (says|claims|states|notes|suggests)",
+      "why": "attributes the blog index claim to the comment"
+    },
+    {
+      "pattern": "callers?[^.]*(default|order)",
+      "why": "callers relying on the old default order now get newest first"
+    },
+    {
+      "pattern": "tie|same (`?publishedAt`?|timestamp|date)",
+      "why": "no tie-breaker for posts published at the same time"
+    },
+    { "pattern": "findOne", "why": "only find is overridden, not findOne" },
+    { "pattern": "empty", "why": "an empty ?sort= is treated as missing" }
+  ],
+  "forbiddenConcepts": ["input-validation"]
+}

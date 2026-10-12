@@ -3,6 +3,7 @@ import { languageFromPath } from '../context/language';
 import { parseUnifiedDiff } from '../git/diffParser';
 import type { Hunk } from '../git/hunk';
 import type { Depth } from '../llm/schemas';
+import { checksReport, EvalChecksSchema, runChecks, type EvalChecks } from './evalChecks';
 import {
   EXPLAIN_PROMPT_VERSION,
   type ExplainResult,
@@ -41,6 +42,9 @@ export async function runPromptEvals(
     `- Run at: ${new Date().toISOString()}`,
   ];
 
+  let passedChecks = 0;
+  let totalChecks = 0;
+
   await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: 'Prompt evals', cancellable: true },
     async (progress, token) => {
@@ -50,6 +54,7 @@ export async function runPromptEvals(
       for (const name of fixtures) {
         const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(fixturesDir, name));
         const hunks = parseUnifiedDiff(new TextDecoder().decode(bytes));
+        const checks = await readChecks(fixturesDir, name);
         report.push('', `## ${name}`);
         if (hunks.length === 0) {
           report.push('', '_No text hunks (binary file or pure rename)._');
@@ -65,18 +70,38 @@ export async function runPromptEvals(
               skipCache: true,
             });
             report.push('', ...formatResult(hunk, depth, result));
+            if (checks && result.kind === 'explanation') {
+              const results = runChecks(result.explanation, checks);
+              passedChecks += results.filter((r) => r.ok).length;
+              totalChecks += results.length;
+              report.push('', ...checksReport(results));
+            }
           }
         }
       }
     },
   );
 
+  if (totalChecks > 0) {
+    report.splice(6, 0, `- Checks passed: ${passedChecks}/${totalChecks} (warnings, not failures)`);
+  }
   const outDir = vscode.Uri.joinPath(extensionUri, 'evals', 'output');
   await vscode.workspace.fs.createDirectory(outDir);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const outFile = vscode.Uri.joinPath(outDir, `explain-${EXPLAIN_PROMPT_VERSION}-${stamp}.md`);
   await vscode.workspace.fs.writeFile(outFile, new TextEncoder().encode(report.join('\n') + '\n'));
   await vscode.window.showTextDocument(outFile, { preview: false });
+}
+
+/** Checks for `name.diff` live in `name.checks.json`, when a fixture has them. */
+async function readChecks(dir: vscode.Uri, name: string): Promise<EvalChecks | undefined> {
+  const uri = vscode.Uri.joinPath(dir, name.replace(/\.diff$/, '.checks.json'));
+  try {
+    const bytes = await vscode.workspace.fs.readFile(uri);
+    return EvalChecksSchema.parse(JSON.parse(new TextDecoder().decode(bytes)));
+  } catch {
+    return undefined;
+  }
 }
 
 /** Context for fixtures: there is no repository, so only the diff is available. */

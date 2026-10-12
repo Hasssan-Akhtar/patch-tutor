@@ -1,0 +1,16 @@
+{
+  "mustNotSay": [
+    {
+      "pattern": "(fewer|reduc\\w*( the)?( number of)?)\\s+(database |db )?(calls|queries|round[- ]?trips)",
+      "why": "claims fewer database calls; there is still one count per action"
+    }
+  ],
+  "shouldSay": [
+    {
+      "pattern": "(less|smaller|only (a|the) count|just a number)[^.]*(data|rows|result)|same number of (calls|queries)",
+      "why": "says each call returns less data, not that there are fewer calls"
+    },
+    { "pattern": "\\blog", "why": "mentions the new log statement" }
+  ],
+  "forbiddenConcepts": ["input-validation"]
+}
