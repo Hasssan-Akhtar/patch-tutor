@@ -382,7 +382,10 @@ function drawModel() {
   const info = providerById(form.provider);
   const select = $('model-select');
   const input = $('model');
-  const fallback = info.defaultModel ? 'Default (' + info.defaultModel + ')' : '';
+  // VS Code models has no fixed default: an empty setting uses the first listed model.
+  const first = form.provider === 'vscodeLm' && models[0] ? models[0].label || models[0].id : '';
+  const defaultName = info.defaultModel || first;
+  const fallback = defaultName ? 'Default (' + defaultName + ')' : '';
   if (!models.length) {
     select.hidden = true;
     input.hidden = false;
