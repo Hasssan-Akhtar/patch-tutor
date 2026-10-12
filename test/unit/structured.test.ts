@@ -21,6 +21,21 @@ describe('extractJson', () => {
     expect(extractJson('Sure!\n```json\n{"a": 1}\n```\nHope that helps')).toBe('{"a": 1}');
     expect(extractJson('Here you go: {"a": {"b": 2}} done')).toBe('{"a": {"b": 2}}');
   });
+
+  // A follow-up dry run from GPT-4o mini: the code fence is inside the answer string.
+  it('keeps a bare JSON object whole when a string inside it has a code fence', () => {
+    const reply = JSON.stringify({
+      answer: 'Dry run:\n\n```javascript\nconst price = 100;\n```\n\nIt returns 80.',
+      mistake: '',
+    });
+    expect(extractJson(reply)).toBe(reply);
+    expect(extractJson(`\n  ${reply}  \n`)).toBe(reply);
+  });
+
+  it('still unwraps a fenced JSON reply whose strings contain fences', () => {
+    const inner = JSON.stringify({ answer: 'See:\n```ts\nx()\n```' });
+    expect(extractJson('```json\n' + inner + '\n```')).toBe(inner);
+  });
 });
 
 describe('parseJson', () => {

@@ -56,9 +56,18 @@ export function parseJson<T>(
 
 /** Strips code fences and any prose around the outermost JSON object. */
 export function extractJson(text: string): string {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
-  const body = fenced?.[1] ?? text;
-  const start = body.indexOf('{');
-  const end = body.lastIndexOf('}');
-  return start >= 0 && end > start ? body.slice(start, end + 1) : body.trim();
+  const trimmed = text.trim();
+  // When the reply is the object, bare or fenced, take it whole: strings inside
+  // it may hold code fences of their own, such as a dry run's code block.
+  if (/^(```(?:json)?\s*)?\{/i.test(trimmed)) {
+    return outermostObject(trimmed);
+  }
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed);
+  return outermostObject(fenced?.[1] ?? trimmed);
+}
+
+function outermostObject(text: string): string {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  return start >= 0 && end > start ? text.slice(start, end + 1) : text.trim();
 }
