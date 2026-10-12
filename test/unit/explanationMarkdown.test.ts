@@ -37,6 +37,14 @@ describe('explanationMarkdown', () => {
     expect(md).not.toContain('from cache');
   });
 
+  it('puts a bulleted list of changes on its own lines below the label', () => {
+    const md = explanationMarkdown(
+      { ...explanation, whatChanged: '- Uses `count()`.\n- Logs grants.' },
+      false,
+    );
+    expect(md).toMatch(/What changed<\/strong><\/span>\n\n- Uses `count\(\)`\.\n- Logs grants\./);
+  });
+
   it('marks a revised explanation and invites questions', () => {
     const md = explanationMarkdown(explanation, false, true);
     expect(md).toContain('✏️ Revised after your reply');

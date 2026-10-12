@@ -55,13 +55,17 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
   const modelKey = () => providers.modelKey();
   context.subscriptions.push(providers);
 
-  const buildContext = async (hunk: Hunk, repoRoot: string | undefined, signal?: AbortSignal) =>
-    buildHunkContext(
+  const hunks = new HunkService();
+  const buildContext = async (hunk: Hunk, repoRoot: string | undefined, signal?: AbortSignal) => {
+    const root = repoRoot ? vscode.Uri.file(repoRoot) : (await getActiveRepository()).rootUri;
+    return buildHunkContext(
       hunk,
-      repoRoot ? vscode.Uri.file(repoRoot) : (await getActiveRepository()).rootUri,
+      root,
       config().get<number>('contextTokenBudget', 6000),
       signal,
+      await fileHunks(hunks, root, hunk),
     );
+  };
   const maxOutputTokens = () => config().get<number>('maxOutputTokens', 1200);
 
   const explainService = new ExplainService({
@@ -75,7 +79,6 @@ export function activate(context: vscode.ExtensionContext): PatchTutorTestApi {
   });
   const quizService = new QuizService({ createProvider: provider, buildContext, maxOutputTokens });
 
-  const hunks = new HunkService();
   const threads = new ThreadRegistry(context.extensionUri);
   const comments = new InlineComments(threads, explainService);
   const followUps = new FollowUpThreads(
@@ -257,4 +260,16 @@ function formatHunk(hunk: Hunk): string {
   const file = hunk.oldPath ? `${hunk.oldPath} -> ${hunk.filePath}` : hunk.filePath;
   const end = hunk.newStart + Math.max(hunk.newLines, 1) - 1;
   return `\n${file} [${hunk.status}] lines ${hunk.newStart}-${end} (+${hunk.added.length} -${hunk.removed.length})\n${hunk.raw}`;
+}
+
+/** The hunk's file's hunks from the same diff, or none when they can't be read. */
+async function fileHunks(hunks: HunkService, root: vscode.Uri, hunk: Hunk): Promise<Hunk[]> {
+  if (hunk.status === 'deleted') {
+    return [];
+  }
+  try {
+    return (await hunks.findHunk(vscode.Uri.joinPath(root, hunk.filePath), hunk.id))?.hunks ?? [];
+  } catch {
+    return [];
+  }
 }

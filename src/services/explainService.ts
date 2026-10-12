@@ -105,7 +105,7 @@ export function buildExplainUserMessage(hunk: Hunk, depth: Depth, context: HunkC
 /** Template values describing a hunk and its context, shared by the explain and quiz prompts. */
 export function hunkPromptValues(hunk: Hunk, context: HunkContext): Record<string, string> {
   const sections = context.sections.map(
-    (s) => `### ${s.title}\n\n\`\`\`${context.languageId}\n${s.text}\n\`\`\``,
+    (s) => `### ${s.title}\n\n\`\`\`${s.language ?? context.languageId}\n${s.text}\n\`\`\``,
   );
   return {
     filePath: hunk.oldPath ? `${hunk.oldPath} -> ${hunk.filePath}` : hunk.filePath,

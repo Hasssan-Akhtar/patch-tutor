@@ -5,6 +5,7 @@ import { fitToBudget, truncateLines, type ContextSection } from './budget';
 import { detectFrameworks } from './frameworks';
 import { addedLines, extractIdentifiers } from './hunkLines';
 import { languageFromPath } from './language';
+import { otherHunksSection } from './otherHunks';
 import { isInsidePath } from './paths';
 import { estimateTokens } from './tokens';
 
@@ -32,7 +33,8 @@ interface FoundRange {
 
 /**
  * Gathers what a reader needs to understand a hunk: the enclosing symbol,
- * definitions of symbols used in added lines, language and frameworks. Uses
+ * definitions of symbols used in added lines, the file's other changes,
+ * language and frameworks. Uses
  * whatever language servers are installed, so it degrades gracefully to just
  * the diff when none are.
  */
@@ -41,6 +43,8 @@ export async function buildHunkContext(
   repoRoot: vscode.Uri,
   tokenBudget: number,
   signal?: AbortSignal,
+  /** Every hunk of the same file from the same diff, including `hunk`. */
+  fileHunks: readonly Hunk[] = [],
 ): Promise<HunkContext> {
   const uri = vscode.Uri.joinPath(repoRoot, hunk.filePath);
   const document = hunk.status === 'deleted' ? undefined : await openDocument(uri);
@@ -78,6 +82,11 @@ export async function buildHunkContext(
   if (document) {
     const definitions = await findDefinitions(hunk, uri, repoRoot, [hunkRange, enclosing], signal);
     definitions.forEach((d, i) => sections.push({ ...d, priority: 50 - i }));
+  }
+
+  const others = otherHunksSection(hunk, fileHunks);
+  if (others) {
+    sections.push(others);
   }
 
   const remaining = tokenBudget - estimateTokens(diff);
