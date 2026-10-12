@@ -6,7 +6,7 @@ import type {
   HTMLSelectElement,
 } from 'happy-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { chatShellHtml, type ChatState } from '../../src/ui/chat/chatHtml';
+import { chatShellHtml, isSmallModel, type ChatState } from '../../src/ui/chat/chatHtml';
 
 // DOM types come from happy-dom so the project itself stays without the DOM lib.
 const window = globalThis as unknown as DomWindow;
@@ -62,6 +62,36 @@ function openSettings(model: string): void {
   send({ type: 'models', provider: 'anthropic', models: MODELS });
 }
 
+/** Switches the open page to VS Code models with `models` listed. */
+function openVscodeModels(models: { id: string; label: string }[]): void {
+  openSettings('');
+  const base = state('');
+  send({
+    type: 'state',
+    state: {
+      ...base,
+      settings: {
+        ...base.settings,
+        active: { provider: 'vscodeLm', model: '', baseUrl: '' },
+        providers: [
+          {
+            id: 'vscodeLm',
+            label: 'VS Code models',
+            detail: 'Copilot.',
+            usesKey: false,
+            usesBaseUrl: false,
+            defaultBaseUrl: '',
+            defaultModel: '',
+            keySaved: false,
+          },
+        ],
+        version: 2,
+      },
+    },
+  });
+  send({ type: 'models', provider: 'vscodeLm', models });
+}
+
 function lastForm(): Record<string, unknown> | undefined {
   return posted.filter((m) => m.action === 'saveSettings').at(-1)?.form as
     Record<string, unknown> | undefined;
@@ -110,6 +140,46 @@ describe('model picker', () => {
     input.value = 'claude-custom-2';
     $('settings').querySelector<HTMLElement>('[data-action="saveSettings"]')?.click();
     expect(lastForm()).toMatchObject({ model: 'claude-custom-2' });
+  });
+
+  it('warns that a small model makes more mistakes, and only for small models', () => {
+    openSettings('');
+    const hint = $('model-small');
+    expect(hint.hidden).toBe(true); // Default (claude-opus-5-5)
+
+    const select = $<HTMLSelectElement>('model-select');
+    select.value = 'claude-haiku-5-5';
+    select.dispatchEvent(new window.Event('change'));
+    expect(hint.hidden).toBe(false);
+    expect(hint.textContent).toMatch(/Small models are fast but make more mistakes/);
+
+    select.value = 'claude-opus-5-5';
+    select.dispatchEvent(new window.Event('change'));
+    expect(hint.hidden).toBe(true);
+  });
+
+  it('warns when the default VS Code model is a small one', () => {
+    openVscodeModels([
+      { id: 'gpt-4o-mini', label: 'GPT-4o mini' },
+      { id: 'gpt-4.1', label: 'GPT-4.1' },
+    ]);
+    expect($('model-small').hidden).toBe(false);
+  });
+
+  it('recognizes small model names without false alarms', () => {
+    for (const name of [
+      'GPT-4o mini',
+      'gpt-4o-mini',
+      'Claude Haiku 5.5',
+      'Gemini 2.0 Flash',
+      'gpt-5-nano',
+      'Flash-Lite',
+    ]) {
+      expect(isSmallModel(name), name).toBe(true);
+    }
+    for (const name of ['GPT-4.1', 'Gemini 2.5 Pro', 'claude-opus-5-5', 'Choose a model', '']) {
+      expect(isSmallModel(name), name).toBe(false);
+    }
   });
 
   it('names the first listed model as the default for VS Code models', () => {
