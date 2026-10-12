@@ -20,7 +20,12 @@ describe('explain prompt', () => {
   });
 
   it('checks the risks that were missed, and never lists the handled case as a risk', () => {
-    for (const risk of [/old default/i, /tie-breaker/i, /sibling|related (methods|functions)/i, /empty/i]) {
+    for (const risk of [
+      /old default/i,
+      /tie-breaker/i,
+      /sibling|related (methods|functions)/i,
+      /empty/i,
+    ]) {
       expect(explainPrompt).toMatch(risk);
     }
     expect(explainPrompt).toMatch(/case the change handles/i);
