@@ -78,6 +78,14 @@ describe('FollowUpSchema', () => {
     expect(FollowUpSchema.parse({ answer: 'No.', revised: null }).revised).toBeUndefined();
   });
 
+  it('treats an empty revision object as no revision', () => {
+    expect(FollowUpSchema.parse({ answer: 'A.', mistake: '', revised: {} })).toEqual({
+      answer: 'A.',
+      mistake: undefined,
+      revised: undefined,
+    });
+  });
+
   it('rejects an empty answer', () => {
     expect(FollowUpSchema.safeParse({ answer: '' }).success).toBe(false);
   });
@@ -176,8 +184,26 @@ describe('FollowUpService', () => {
     expect((await service.ask(request)).revised).toBeUndefined();
   });
 
+  // The exact shape GPT-4o mini returned for "give me a complete dry run".
+  it('reads a dry-run answer with code blocks and empty placeholders', async () => {
+    const answer =
+      'Dry run:\n\n```javascript\nconst price = 100;\nconst percent = 20;\n```\n\n1. Returns 80.';
+    const { service, complete, request } = setup(
+      JSON.stringify({ answer, mistake: '', revised: {} }),
+    );
+
+    expect(await service.ask(request)).toEqual({
+      context,
+      answer,
+      revised: undefined,
+      mistake: undefined,
+      structured: true,
+    });
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps a valid answer when only the revision is malformed', async () => {
-    const broken = JSON.stringify({ answer: 'Same number of calls.', revised: {} });
+    const broken = JSON.stringify({ answer: 'Same number of calls.', revised: { summary: 'x' } });
     const { service, request } = setup([broken, broken]);
 
     expect(await service.ask(request)).toEqual({

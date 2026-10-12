@@ -66,8 +66,14 @@ export const FollowUpSchema = z.object({
     .string()
     .nullish()
     .transform((value) => value?.trim() || undefined),
-  // Some models send null instead of leaving the field out.
-  revised: ExplanationSchema.nullish().transform((value) => value ?? undefined),
+  // Small models send null or {} instead of leaving the field out.
+  revised: z
+    .preprocess(
+      (value) =>
+        value && typeof value === 'object' && Object.keys(value).length === 0 ? undefined : value,
+      ExplanationSchema.nullish(),
+    )
+    .transform((value) => value ?? undefined),
 });
 export type FollowUp = z.infer<typeof FollowUpSchema>;
 
