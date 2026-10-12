@@ -167,6 +167,7 @@ export function chatShellHtml(security: ChatPageSecurity): string {
       <button class="icon" data-action="loadModels" title="Refresh model list" aria-label="Refresh model list">↻</button>
     </div>
     <p class="hint" id="model-status" hidden></p>
+    <p class="hint" id="model-small" hidden>Small models are fast but make more mistakes in explanations. For accuracy, pick a larger model.</p>
   </div>
   <div class="actions">
     <button class="primary" data-action="saveSettings">Save</button>
@@ -313,6 +314,13 @@ button.icon:hover { background: var(--vscode-toolbar-hoverBackground); }
 // Settings form: the page owns the inputs while open and re-reads saved
 // values only when they change, so typing is never overwritten. Keys typed
 // here are sent once to the extension and never sent back.
+/** Names of small, fast models, which make more mistakes in explanations. */
+const SMALL_MODEL = /(^|[^a-z])(mini|haiku|flash|small|nano|lite)([^a-z]|$)/i;
+
+export function isSmallModel(name: string): boolean {
+  return SMALL_MODEL.test(name);
+}
+
 const SETTINGS_SCRIPT = `
 let form = null;
 let settingsVersion = -1;
@@ -320,6 +328,7 @@ let replacingKey = false;
 // Models listed by the provider; empty means the name is typed by hand.
 let models = [];
 const OTHER = '__other__';
+const SMALL_MODEL = ${SMALL_MODEL};
 
 function providerById(id) { return state.settings.providers.find((p) => p.id === id); }
 
@@ -395,6 +404,7 @@ function drawModel() {
     input.value = form.model;
     input.placeholder = fallback || 'Model name';
     syncDropdowns();
+    drawSmallModelHint();
     return;
   }
   select.innerHTML = '';
@@ -418,6 +428,21 @@ function drawModel() {
   input.value = listed ? '' : form.model;
   input.placeholder = 'Model name';
   syncDropdowns();
+  drawSmallModelHint();
+}
+
+// The model that will run: the chosen option (its label names the default), or the typed name.
+function chosenModelName() {
+  const select = $('model-select');
+  if (!select.hidden && select.value !== OTHER) {
+    const option = select.options[select.selectedIndex];
+    return option ? option.textContent : '';
+  }
+  return $('model').value.trim() || providerById(form.provider).defaultModel;
+}
+
+function drawSmallModelHint() {
+  show('model-small', SMALL_MODEL.test(chosenModelName()));
 }
 
 function readForm() {
@@ -619,7 +644,9 @@ $('model-select').addEventListener('change', () => {
   const other = $('model-select').value === OTHER;
   show('model', other);
   if (other) $('model').focus();
+  drawSmallModelHint();
 });
+$('model').addEventListener('input', drawSmallModelHint);
 $('base-url').addEventListener('change', () => { readForm(); drawForm(); requestModels(); });
 $('api-key').addEventListener('change', () => { if ($('api-key').value.trim()) requestModels(); });
 `;
