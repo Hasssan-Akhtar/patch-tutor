@@ -15,6 +15,8 @@ export interface ChatMessageView {
 }
 
 export interface QuizPanel {
+  /** A quiz, or a follow-up chat about an explanation. */
+  kind: 'quiz' | 'followUp';
   file: string;
   line: number;
   messages: ChatMessageView[];
@@ -125,7 +127,7 @@ export function chatShellHtml(security: ChatPageSecurity): string {
 </head>
 <body data-avatar="${escapeHtml(security.avatarUri)}">
 <nav id="tabs" class="tabs" role="tablist">
-  <button role="tab" data-action="tab" data-tab="quiz" id="tab-quiz">Quiz</button>
+  <button role="tab" data-action="tab" data-tab="quiz" id="tab-quiz">Chat</button>
   <button role="tab" data-action="tab" data-tab="history" id="tab-history">History <span id="history-count" class="count" hidden></span></button>
 </nav>
 <section id="settings" class="settings" hidden>
@@ -176,8 +178,8 @@ export function chatShellHtml(security: ChatPageSecurity): string {
 <main id="messages" aria-live="polite"></main>
 <section id="list" class="list" hidden></section>
 <section id="empty" class="empty" hidden>
-  <p class="empty-title">No quiz in progress</p>
-  <p class="hint">Click <strong>Quiz me</strong> above a change, then <strong>Move to chat</strong>.</p>
+  <p class="empty-title">Nothing in progress</p>
+  <p class="hint">Click <strong>Quiz me</strong> above a change, or reply to an explanation, then <strong>Move to chat</strong>.</p>
   <p><button class="link" data-action="tab" data-tab="history">View past quizzes</button></p>
 </section>
 <footer id="composer" hidden>
@@ -628,6 +630,8 @@ const $ = (id) => document.getElementById(id);
 const avatar = document.body.dataset.avatar;
 const answer = $('answer');
 let state;
+const QUIZ_PLACEHOLDER = 'Type your answer. Short is fine. Enter to send, Shift+Enter for a new line.';
+const FOLLOW_UP_PLACEHOLDER = 'Ask a question or push back. Enter to send, Shift+Enter for a new line.';
 
 function show(id, visible) { $(id).hidden = !visible; }
 
@@ -674,8 +678,9 @@ function render(next) {
   if (state.tab === 'quiz') {
     const quiz = state.quiz;
     if (!quiz) { show('empty', true); return; }
+    const followUp = quiz.kind === 'followUp';
     bar.innerHTML = '';
-    bar.append('🎓 Quiz on ');
+    bar.append(followUp ? '💬 Follow-up on ' : '🎓 Quiz on ');
     const where = document.createElement('button');
     where.className = 'link';
     where.dataset.action = 'showChange';
@@ -686,6 +691,10 @@ function render(next) {
     renderMessages(quiz.messages, switched || quiz.busy);
     show('composer', !quiz.done);
     show('finished', quiz.done);
+    show('reveal', !followUp);
+    show('skip', !followUp);
+    $('submit').textContent = followUp ? 'Send' : 'Submit';
+    answer.placeholder = followUp ? FOLLOW_UP_PLACEHOLDER : QUIZ_PLACEHOLDER;
     for (const id of ['submit', 'reveal', 'skip']) $(id).disabled = !quiz.canAnswer;
     if (quiz.canAnswer && document.activeElement !== answer) answer.focus();
     return;

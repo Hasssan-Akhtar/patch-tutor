@@ -11,16 +11,22 @@ import {
   type ProviderSettings,
 } from '../../services/providerService';
 import { validateUrl } from '../providerCommands';
-import type { QuizRun } from '../quizRun';
+import type { ExplanationChat } from '../explanationChat';
+import { escapeModelText } from '../markdownStyle';
+import { QuizRun, type QuizMessage } from '../quizRun';
 import {
   chatShellHtml,
   historyItem,
   messageHtml,
   transcriptMeta,
   type ChatState,
+  type QuizPanel,
 } from './chatHtml';
 
 export const CHAT_VIEW_ID = 'patchTutor.chat';
+
+/** What the Chat tab can show: a quiz, or a follow-up chat about an explanation. */
+export type LiveConversation = QuizRun | ExplanationChat;
 
 interface ChatMessage {
   action?: unknown;
@@ -48,9 +54,9 @@ export interface SettingsResult {
  */
 export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   private view: vscode.WebviewView | undefined;
-  private quiz: QuizRun | undefined;
+  private live: LiveConversation | undefined;
   private uri: vscode.Uri | undefined;
-  private quizSubscription: { dispose(): void } | undefined;
+  private liveSubscription: { dispose(): void } | undefined;
   private readonly transcriptSubscription: { dispose(): void };
   private tab: ChatState['tab'] = 'quiz';
   private tabBeforeSettings: Exclude<ChatState['tab'], 'settings'> = 'quiz';
@@ -126,9 +132,9 @@ export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
     return { ok: true, text: `✓ Saved. Patch Tutor now uses ${this.providers.label()}.` };
   }
 
-  /** The live quiz; exposed for tests. */
-  get current(): QuizRun | undefined {
-    return this.quiz;
+  /** The live conversation; exposed for tests. */
+  get current(): LiveConversation | undefined {
+    return this.live;
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -146,30 +152,34 @@ export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
     });
   }
 
-  /** Shows a quiz on the Quiz tab, replacing any previous one, and reveals the chat. */
-  async adopt(quiz: QuizRun, uri: vscode.Uri): Promise<void> {
-    if (this.quiz && this.quiz !== quiz) {
-      this.quiz.cancel();
+  /** Shows a quiz or follow-up on the Chat tab, replacing any previous one, and reveals the chat. */
+  async adopt(conversation: LiveConversation, uri: vscode.Uri): Promise<void> {
+    if (this.live && this.live !== conversation) {
+      this.live.cancel();
     }
-    this.quizSubscription?.dispose();
-    this.quiz = quiz;
+    this.liveSubscription?.dispose();
+    this.live = conversation;
     this.uri = uri;
     this.tab = 'quiz';
     this.viewing = undefined;
-    this.quizSubscription = quiz.onDidChange(() => this.post());
+    this.liveSubscription = conversation.onDidChange(() => this.post());
     this.post();
     await vscode.commands.executeCommand(`${CHAT_VIEW_ID}.focus`);
   }
 
   async submit(text: string): Promise<void> {
-    await this.quiz?.submit(text);
+    if (this.live instanceof QuizRun) {
+      await this.live.submit(text);
+    } else {
+      await this.live?.ask(text);
+    }
   }
 
   async anotherRound(): Promise<void> {
-    if (!this.quiz || !this.uri) {
+    if (!(this.live instanceof QuizRun) || !this.uri) {
       return;
     }
-    const next = this.newRound(this.quiz);
+    const next = this.newRound(this.live);
     await this.adopt(next, this.uri);
     await next.start();
   }
@@ -196,7 +206,8 @@ export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
 
   state(): ChatState {
     const now = Date.now();
-    const quiz = this.quiz;
+    const live = this.live;
+    const quizId = live instanceof QuizRun ? live.id : undefined;
     return {
       tab: this.tab,
       modelLabel: this.providers.label(),
@@ -210,15 +221,8 @@ export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         presets: OPENAI_PRESETS,
         version: this.settingsVersion,
       },
-      quiz: quiz && {
-        file: quiz.hunk.filePath,
-        line: changedLineRange(quiz.hunk).start,
-        messages: quiz.messages.map(messageHtml),
-        canAnswer: quiz.canAnswer,
-        busy: quiz.busy,
-        done: quiz.done,
-      },
-      history: this.history.map((t) => historyItem(t, now, quiz?.id)),
+      quiz: live && livePanel(live),
+      history: this.history.map((t) => historyItem(t, now, quizId)),
       viewing: this.viewing && {
         where: `${this.viewing.filePath}:${this.viewing.line}`,
         meta: transcriptMeta(this.viewing, now),
@@ -228,10 +232,10 @@ export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   }
 
   dispose(): void {
-    this.quizSubscription?.dispose();
+    this.liveSubscription?.dispose();
     this.transcriptSubscription.dispose();
     this.providerSubscription.dispose();
-    this.quiz?.cancel();
+    this.live?.cancel();
   }
 
   private async reloadSettings(): Promise<void> {
@@ -260,7 +264,7 @@ export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
     switch (message.action) {
       case 'ready':
         // Open on History when there is no live quiz but there are past ones.
-        if (!this.quiz && this.history.length > 0) {
+        if (!this.live && this.history.length > 0) {
           this.tab = 'history';
         }
         this.post();
@@ -287,10 +291,14 @@ export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         }
         break;
       case 'skip':
-        this.quiz?.skip();
+        if (this.live instanceof QuizRun) {
+          this.live.skip();
+        }
         break;
       case 'reveal':
-        this.quiz?.reveal();
+        if (this.live instanceof QuizRun) {
+          this.live.reveal();
+        }
         break;
       case 'anotherRound':
         await this.anotherRound();
@@ -339,10 +347,10 @@ export class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   }
 
   private async showChange(): Promise<void> {
-    if (!this.quiz || !this.uri) {
+    if (!this.live || !this.uri) {
       return;
     }
-    const line = changedLineRange(this.quiz.hunk).start - 1;
+    const line = changedLineRange(this.live.hunk).start - 1;
     const editor = await vscode.window.showTextDocument(this.uri, { preview: false });
     const position = new vscode.Position(Math.max(line, 0), 0);
     editor.selection = new vscode.Selection(position, position);
@@ -381,4 +389,31 @@ function invalidForm(form: SettingsForm): string | undefined {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function livePanel(live: LiveConversation): QuizPanel {
+  const where = { file: live.hunk.filePath, line: changedLineRange(live.hunk).start };
+  if (live instanceof QuizRun) {
+    return {
+      kind: 'quiz',
+      ...where,
+      messages: live.messages.map(messageHtml),
+      canAnswer: live.canAnswer,
+      busy: live.busy,
+      done: live.done,
+    };
+  }
+  // Pin what the conversation is about, since the explanation stays in the editor.
+  const pinned: QuizMessage = {
+    from: 'tutor',
+    text: `> 💡 **TL;DR:** ${escapeModelText(live.explanation.summary)}`,
+  };
+  return {
+    kind: 'followUp',
+    ...where,
+    messages: [pinned, ...live.messages].map(messageHtml),
+    canAnswer: live.canSend,
+    busy: live.busy,
+    done: false,
+  };
 }

@@ -337,9 +337,10 @@ suite('inline UI', () => {
 
     // The chat shows the same quiz, answers so far included.
     const quiz = api.chat.current;
-    assert.ok(quiz);
+    assert.ok(quiz && 'reveal' in quiz, 'expected a quiz');
     const state = api.chat.state();
     assert.strictEqual(state.tab, 'quiz');
+    assert.strictEqual(state.quiz?.kind, 'quiz');
     assert.strictEqual(state.quiz?.file, 'cart.js');
     assert.strictEqual(state.quiz?.line, 12);
     assert.deepStrictEqual(
@@ -363,6 +364,38 @@ suite('inline UI', () => {
     await api.chat.anotherRound();
     assert.notStrictEqual(api.chat.current, quiz);
     assert.match(api.chat.state().quiz?.messages.at(-1)?.html ?? '', /Question 1 of 3/);
+
+    await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
+  });
+
+  test('Move to chat continues a follow-up in the sidebar chat', async () => {
+    const document = await vscode.workspace.openTextDocument(file);
+    const hunk = (await api.hunks.getHunks(document))?.hunks.find((h) =>
+      h.added.includes(ADDED_LINE),
+    );
+    assert.ok(hunk);
+    await vscode.commands.executeCommand('patchTutor.explainHunk', file, hunk.id);
+    const [thread] = api.threads.threadsFor(file);
+    assert.ok(thread);
+    followUpReply = { answer: 'First answer.' };
+    await vscode.commands.executeCommand('patchTutor.chat.ask', { thread, text: 'First?' });
+
+    await vscode.commands.executeCommand('patchTutor.chat.moveToChat', { thread, text: '' });
+
+    assert.match(bodies(thread).at(-1) ?? '', /conversation continues in the Patch Tutor chat/);
+    assert.strictEqual(thread.canReply, false);
+    assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
+    const state = api.chat.state();
+    assert.strictEqual(state.quiz?.kind, 'followUp');
+    assert.match(state.quiz?.messages[0]?.html ?? '', /TL;DR/);
+    assert.deepStrictEqual(
+      state.quiz?.messages.map((m) => m.from),
+      ['tutor', 'you', 'tutor'],
+    );
+
+    followUpReply = { answer: 'Second answer.' };
+    await api.chat.submit('Second?');
+    assert.match(api.chat.state().quiz?.messages.at(-1)?.html ?? '', /Second answer/);
 
     await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
   });
