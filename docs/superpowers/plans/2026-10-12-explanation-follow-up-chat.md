@@ -58,6 +58,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 1: Follow-up schema, prompts and service
 
 **Files:**
+
 - Modify: `src/llm/schemas.ts` (append)
 - Create: `src/prompts/follow-up.md`
 - Create: `src/prompts/follow-up-user.md`
@@ -65,6 +66,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `test/unit/followUpService.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ExplanationSchema`, `Explanation`, `Depth` (`src/llm/schemas.ts`); `completeStructured` (`src/llm/structured.ts`); `renderTemplate` (`src/prompts/render.ts`); `hunkPromptValues`, `HunkContext` (`src/services/explainService.ts`); `LLMProvider` (`src/llm/provider.ts`).
 - Produces:
   - `FollowUpSchema` and `type FollowUp = { answer: string; revised: Explanation | undefined }`
@@ -150,7 +152,10 @@ function setup(reply: string | string[]) {
 
 describe('FollowUpSchema', () => {
   it('accepts an answer with or without a revision', () => {
-    expect(FollowUpSchema.parse({ answer: 'Yes.' })).toEqual({ answer: 'Yes.', revised: undefined });
+    expect(FollowUpSchema.parse({ answer: 'Yes.' })).toEqual({
+      answer: 'Yes.',
+      revised: undefined,
+    });
     expect(FollowUpSchema.parse({ answer: 'Fixed.', revised: explanation }).revised).toEqual(
       explanation,
     );
@@ -191,7 +196,12 @@ describe('FollowUpService', () => {
       history: [{ question: 'What changed?', answer: 'A return.' }],
     });
 
-    expect(result).toEqual({ context, answer: 'To skip the loop.', revised: undefined, structured: true });
+    expect(result).toEqual({
+      context,
+      answer: 'To skip the loop.',
+      revised: undefined,
+      structured: true,
+    });
     const sent = complete.mock.calls[0]?.[0];
     expect(sent?.system).toBe(followUpPrompt);
     expect(sent?.json).toBe(true);
@@ -274,16 +284,16 @@ Rules:
 Reply with only a JSON object, no prose and no code fences, matching exactly:
 
 {
-  "answer": "string",
-  "revised": {
-    "summary": "string",
-    "whatChanged": "string",
-    "howItWorks": "string",
-    "whyItWorks": "string",
-    "concepts": ["string"],
-    "risks": ["string"],
-    "depth": "simple" | "standard" | "deep"
-  }
+"answer": "string",
+"revised": {
+"summary": "string",
+"whatChanged": "string",
+"howItWorks": "string",
+"whyItWorks": "string",
+"concepts": ["string"],
+"risks": ["string"],
+"depth": "simple" | "standard" | "deep"
+}
 }
 
 Leave out `revised` entirely when nothing in the explanation was wrong.
@@ -434,7 +444,8 @@ export function conversationForPrompt(history: readonly Exchange[]): string {
     return '(none yet)';
   }
   const dropped = history.length - recent.length;
-  const note = dropped > 0 ? `(${dropped} earlier exchange${dropped === 1 ? '' : 's'} left out)\n\n` : '';
+  const note =
+    dropped > 0 ? `(${dropped} earlier exchange${dropped === 1 ? '' : 's'} left out)\n\n` : '';
   return note + recent.map((x) => `Developer: ${x.question}\n\nTutor: ${x.answer}`).join('\n\n');
 }
 ```
@@ -458,11 +469,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 2: ExplanationChat conversation model
 
 **Files:**
+
 - Create: `src/ui/explanationChat.ts`
 - Modify: `src/ui/quizRun.ts` (export the existing `failure` helper as `failureMarkdown`)
 - Test: `test/unit/explanationChat.test.ts`
 
 **Interfaces:**
+
 - Consumes: `FollowUpService`, `Exchange` (Task 1); `QuizMessage` (`src/ui/quizRun.ts`); `escapeModelText` (`src/ui/markdownStyle.ts`); `HunkContext`.
 - Produces:
   - `failureMarkdown(what: string, error: unknown): string` exported from `src/ui/quizRun.ts`
@@ -791,6 +804,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 3: Follow-ups and Refresh in the comment thread
 
 **Files:**
+
 - Modify: `src/ui/threads.ts`
 - Modify: `src/ui/comments.ts`
 - Create: `src/ui/followUpThreads.ts`
@@ -801,6 +815,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `test/unit/explanationMarkdown.test.ts`, `test/integration/inlineUi.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ExplanationChat` (Task 2); `FollowUpService` (Task 1).
 - Produces:
   - `ThreadEntry` gains `explained?: Explanation`, `chat?: ExplanationChat`, `chatInChat?: boolean`.
@@ -818,12 +833,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 Add to `test/unit/explanationMarkdown.test.ts`, inside its `describe` block (it already defines `const explanation: Explanation` at the top):
 
 ```ts
-  it('marks a revised explanation and invites questions', () => {
-    const md = explanationMarkdown(explanation, false, true);
-    expect(md).toContain('✏️ Revised after your reply');
-    expect(md).toContain('reply below');
-    expect(explanationMarkdown(explanation, false)).not.toContain('Revised');
-  });
+it('marks a revised explanation and invites questions', () => {
+  const md = explanationMarkdown(explanation, false, true);
+  expect(md).toContain('✏️ Revised after your reply');
+  expect(md).toContain('reply below');
+  expect(explanationMarkdown(explanation, false)).not.toContain('Revised');
+});
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
@@ -844,16 +859,16 @@ export function explanationMarkdown(
 ```
 
 ```ts
-  const meta = [
-    DEPTH_LABEL[explanation.depth],
-    revised ? '✏️ Revised after your reply' : undefined,
-    fromCache ? '⚡ from cache' : undefined,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-  parts.push(
-    `---\n🎓 **Think you've got it?** Hit **Quiz me** above, or reply below with a question. · _${meta}_`,
-  );
+const meta = [
+  DEPTH_LABEL[explanation.depth],
+  revised ? '✏️ Revised after your reply' : undefined,
+  fromCache ? '⚡ from cache' : undefined,
+]
+  .filter(Boolean)
+  .join(' · ');
+parts.push(
+  `---\n🎓 **Think you've got it?** Hit **Quiz me** above, or reply below with a question. · _${meta}_`,
+);
 ```
 
 Run: `npm test -- test/unit/explanationMarkdown.test.ts`
@@ -866,42 +881,44 @@ In `test/integration/inlineUi.test.ts`:
 1. Next to `const requests: string[] = [];` add:
 
 ```ts
-  let followUpReply: object = { answer: 'Because arrays know their length.' };
+let followUpReply: object = { answer: 'Because arrays know their length.' };
 ```
 
 2. In the fake provider's `complete`, before `return JSON.stringify(EXPLANATION);`, add:
 
 ```ts
-        if (request.system.includes('follow-up question')) {
-          return JSON.stringify(followUpReply);
-        }
+if (request.system.includes('follow-up question')) {
+  return JSON.stringify(followUpReply);
+}
 ```
 
 3. In the test 'Explain opens a comment thread on the hunk with the explanation', change
-`assert.strictEqual(thread.contextValue, 'patchTutorThread standard');` to
-`assert.strictEqual(thread.contextValue, 'patchTutorThread standard chat');`
+   `assert.strictEqual(thread.contextValue, 'patchTutorThread standard');` to
+   `assert.strictEqual(thread.contextValue, 'patchTutorThread standard chat');`
 
 4. The test 'Quiz me asks questions one at a time…' defines a local `bodies` helper. Move it to module scope (delete the local `const bodies = …` and add this near the top, after the constants) so the new tests can use it:
 
 ```ts
 function bodies(thread: vscode.CommentThread): string[] {
-  return thread.comments.map((c) => (c.body instanceof vscode.MarkdownString ? c.body.value : c.body));
+  return thread.comments.map((c) =>
+    c.body instanceof vscode.MarkdownString ? c.body.value : c.body,
+  );
 }
 ```
 
 5. In that same quiz test, the thread was explained first, so once the quiz is done the reply box goes back to follow-ups. Change
 
 ```ts
-    assert.strictEqual(thread.canReply, false);
-    assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
+assert.strictEqual(thread.canReply, false);
+assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
 ```
 
 (right after the `Quiz done!` assertion) to
 
 ```ts
-    // Once the quiz is done, the reply box asks follow-ups about the explanation again.
-    assert.strictEqual(thread.canReply, true);
-    assert.strictEqual(thread.contextValue, 'patchTutorThread standard chat');
+// Once the quiz is done, the reply box asks follow-ups about the explanation again.
+assert.strictEqual(thread.canReply, true);
+assert.strictEqual(thread.contextValue, 'patchTutorThread standard chat');
 ```
 
 The 'Move to chat continues the same quiz…' test is unaffected: its thread has no explanation, so it never offers follow-ups.
@@ -909,45 +926,45 @@ The 'Move to chat continues the same quiz…' test is unaffected: its thread has
 6. Add this test after the 'Explain opens a comment thread…' test:
 
 ```ts
-  test('Replying asks a follow-up; a correction revises the explanation; Refresh starts over', async () => {
-    const document = await vscode.workspace.openTextDocument(file);
-    const hunk = (await api.hunks.getHunks(document))?.hunks.find((h) =>
-      h.added.includes(ADDED_LINE),
-    );
-    assert.ok(hunk);
-    await vscode.commands.executeCommand('patchTutor.explainHunk', file, hunk.id);
-    const [thread] = api.threads.threadsFor(file);
-    assert.ok(thread);
-    assert.strictEqual(thread.canReply, true);
+test('Replying asks a follow-up; a correction revises the explanation; Refresh starts over', async () => {
+  const document = await vscode.workspace.openTextDocument(file);
+  const hunk = (await api.hunks.getHunks(document))?.hunks.find((h) =>
+    h.added.includes(ADDED_LINE),
+  );
+  assert.ok(hunk);
+  await vscode.commands.executeCommand('patchTutor.explainHunk', file, hunk.id);
+  const [thread] = api.threads.threadsFor(file);
+  assert.ok(thread);
+  assert.strictEqual(thread.canReply, true);
 
-    followUpReply = { answer: 'Because arrays know their `length`.' };
-    await vscode.commands.executeCommand('patchTutor.chat.ask', { thread, text: 'Why length?' });
-    assert.match(bodies(thread).at(-2) ?? '', /Why length\?/);
-    assert.match(bodies(thread).at(-1) ?? '', /arrays know their/);
-    assert.strictEqual(thread.contextValue, 'patchTutorThread standard chat started');
-    assert.match(requests.at(-1) ?? '', /Why length\?/);
+  followUpReply = { answer: 'Because arrays know their `length`.' };
+  await vscode.commands.executeCommand('patchTutor.chat.ask', { thread, text: 'Why length?' });
+  assert.match(bodies(thread).at(-2) ?? '', /Why length\?/);
+  assert.match(bodies(thread).at(-1) ?? '', /arrays know their/);
+  assert.strictEqual(thread.contextValue, 'patchTutorThread standard chat started');
+  assert.match(requests.at(-1) ?? '', /Why length\?/);
 
-    followUpReply = {
-      answer: 'You are right.',
-      revised: { ...EXPLANATION, summary: 'Counts items in one pass.' },
-    };
-    await vscode.commands.executeCommand('patchTutor.chat.ask', { thread, text: 'Really?' });
-    assert.match(bodies(thread)[0] ?? '', /Revised after your reply/);
-    assert.match(bodies(thread)[0] ?? '', /Counts items in one pass/);
-    assert.strictEqual(thread.label, '💡 Counts items in one pass.');
-    assert.match(requests.at(-1) ?? '', /Developer: Why length\?/);
+  followUpReply = {
+    answer: 'You are right.',
+    revised: { ...EXPLANATION, summary: 'Counts items in one pass.' },
+  };
+  await vscode.commands.executeCommand('patchTutor.chat.ask', { thread, text: 'Really?' });
+  assert.match(bodies(thread)[0] ?? '', /Revised after your reply/);
+  assert.match(bodies(thread)[0] ?? '', /Counts items in one pass/);
+  assert.strictEqual(thread.label, '💡 Counts items in one pass.');
+  assert.match(requests.at(-1) ?? '', /Developer: Why length\?/);
 
-    // A quiz waiting for an answer owns the reply box.
-    await vscode.commands.executeCommand('patchTutor.thread.quiz', thread);
-    assert.strictEqual(thread.contextValue, 'patchTutorThread standard quiz');
+  // A quiz waiting for an answer owns the reply box.
+  await vscode.commands.executeCommand('patchTutor.thread.quiz', thread);
+  assert.strictEqual(thread.contextValue, 'patchTutorThread standard quiz');
 
-    await vscode.commands.executeCommand('patchTutor.thread.refresh', thread);
-    assert.doesNotMatch(bodies(thread)[0] ?? '', /Revised/);
-    assert.match(bodies(thread)[0] ?? '', /Counts the items\./);
-    assert.ok(!bodies(thread).some((b) => /Why length/.test(b)), 'conversation cleared');
+  await vscode.commands.executeCommand('patchTutor.thread.refresh', thread);
+  assert.doesNotMatch(bodies(thread)[0] ?? '', /Revised/);
+  assert.match(bodies(thread)[0] ?? '', /Counts the items\./);
+  assert.ok(!bodies(thread).some((b) => /Why length/.test(b)), 'conversation cleared');
 
-    await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
-  });
+  await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
+});
 ```
 
 Note: Refresh keeps the quiz (it only regenerates the explanation and clears the chat), so the final assertions check the explanation and the absence of chat messages rather than the comment count.
@@ -990,10 +1007,10 @@ const CHAT_MOVED_TO_CHAT =
 Change the controller options in the constructor:
 
 ```ts
-    this.controller.options = {
-      prompt: 'Answer the quiz or ask a follow-up…',
-      placeHolder: 'Ask about this change, or answer the quiz question.',
-    };
+this.controller.options = {
+  prompt: 'Answer the quiz or ask a follow-up…',
+  placeHolder: 'Ask about this change, or answer the quiz question.',
+};
 ```
 
 Replace `render` with:
@@ -1076,17 +1093,17 @@ Add after `moveQuizToChat`:
 In `close`, after the quiz cancel block, add:
 
 ```ts
-        if (!entry.chatInChat) {
-          entry.chat?.cancel();
-        }
+if (!entry.chatInChat) {
+  entry.chat?.cancel();
+}
 ```
 
 In `dispose`, inside the `forEach`, add the same two lines (using `e`):
 
 ```ts
-      if (!e.chatInChat) {
-        e.chat?.cancel();
-      }
+if (!e.chatInChat) {
+  e.chat?.cancel();
+}
 ```
 
 - [ ] **Step 7: Reset the chat on (re-)explain and add refresh**
@@ -1221,10 +1238,10 @@ import { FollowUpThreads } from './ui/followUpThreads';
 After `const comments = new InlineComments(threads, explainService);` add:
 
 ```ts
-  const followUps = new FollowUpThreads(
-    threads,
-    new FollowUpService({ createProvider: provider, buildContext, maxOutputTokens }),
-  );
+const followUps = new FollowUpThreads(
+  threads,
+  new FollowUpService({ createProvider: provider, buildContext, maxOutputTokens }),
+);
 ```
 
 Pass `followUps` as the new last argument of `registerInlineCommands(...)` (after `modelKey`).
@@ -1307,11 +1324,11 @@ Replace the whole `comments/commentThread/title` array with (refresh added at `i
 In `comments/commentThread/context`, add at the end:
 
 ```json
-        {
-          "command": "patchTutor.chat.ask",
-          "group": "inline@1",
-          "when": "commentController == patch-tutor && commentThread =~ / chat( started)?$/"
-        }
+{
+  "command": "patchTutor.chat.ask",
+  "group": "inline@1",
+  "when": "commentController == patch-tutor && commentThread =~ / chat( started)?$/"
+}
 ```
 
 - [ ] **Step 11: Run all tests**
@@ -1333,6 +1350,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 4: Continue a follow-up in the sidebar chat
 
 **Files:**
+
 - Modify: `src/ui/chat/chatView.ts`
 - Modify: `src/ui/chat/chatHtml.ts`
 - Modify: `src/ui/inlineCommands.ts`
@@ -1340,6 +1358,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `test/unit/chatFollowUp.test.ts`, `test/integration/inlineUi.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ExplanationChat` (Task 2); `FollowUpThreads.moveToChat` (Task 3).
 - Produces:
   - `QuizPanel` gains `kind: 'quiz' | 'followUp'`.
@@ -1377,7 +1396,12 @@ const state = (quiz: QuizPanel): ChatState => ({
   modelLabel: 'Fake',
   quiz,
   history: [],
-  settings: { active: { provider: 'vscodeLm', model: '', baseUrl: '' }, providers: [], presets: [], version: 1 },
+  settings: {
+    active: { provider: 'vscodeLm', model: '', baseUrl: '' },
+    providers: [],
+    presets: [],
+    version: 1,
+  },
 });
 
 function send(data: unknown): void {
@@ -1450,13 +1474,16 @@ export interface QuizPanel {
 Rename the tab label and the empty state in the markup:
 
 ```html
-  <button role="tab" data-action="tab" data-tab="quiz" id="tab-quiz">Chat</button>
+<button role="tab" data-action="tab" data-tab="quiz" id="tab-quiz">Chat</button>
 ```
 
 ```html
 <section id="empty" class="empty" hidden>
   <p class="empty-title">Nothing in progress</p>
-  <p class="hint">Click <strong>Quiz me</strong> above a change, or reply to an explanation, then <strong>Move to chat</strong>.</p>
+  <p class="hint">
+    Click <strong>Quiz me</strong> above a change, or reply to an explanation, then
+    <strong>Move to chat</strong>.
+  </p>
   <p><button class="link" data-action="tab" data-tab="history">View past quizzes</button></p>
 </section>
 ```
@@ -1464,35 +1491,40 @@ Rename the tab label and the empty state in the markup:
 In `SCRIPT`, after `let state;` add:
 
 ```js
-const QUIZ_PLACEHOLDER = 'Type your answer. Short is fine. Enter to send, Shift+Enter for a new line.';
-const FOLLOW_UP_PLACEHOLDER = 'Ask a question or push back. Enter to send, Shift+Enter for a new line.';
+const QUIZ_PLACEHOLDER =
+  'Type your answer. Short is fine. Enter to send, Shift+Enter for a new line.';
+const FOLLOW_UP_PLACEHOLDER =
+  'Ask a question or push back. Enter to send, Shift+Enter for a new line.';
 ```
 
 Replace the body of the `if (state.tab === 'quiz') { … }` block with:
 
 ```js
-    const quiz = state.quiz;
-    if (!quiz) { show('empty', true); return; }
-    const followUp = quiz.kind === 'followUp';
-    bar.innerHTML = '';
-    bar.append(followUp ? '💬 Follow-up on ' : '🎓 Quiz on ');
-    const where = document.createElement('button');
-    where.className = 'link';
-    where.dataset.action = 'showChange';
-    where.textContent = quiz.file + ':' + quiz.line;
-    bar.append(where);
-    show('bar', true);
-    show('messages', true);
-    renderMessages(quiz.messages, switched || quiz.busy);
-    show('composer', !quiz.done);
-    show('finished', quiz.done);
-    show('reveal', !followUp);
-    show('skip', !followUp);
-    $('submit').textContent = followUp ? 'Send' : 'Submit';
-    answer.placeholder = followUp ? FOLLOW_UP_PLACEHOLDER : QUIZ_PLACEHOLDER;
-    for (const id of ['submit', 'reveal', 'skip']) $(id).disabled = !quiz.canAnswer;
-    if (quiz.canAnswer && document.activeElement !== answer) answer.focus();
-    return;
+const quiz = state.quiz;
+if (!quiz) {
+  show('empty', true);
+  return;
+}
+const followUp = quiz.kind === 'followUp';
+bar.innerHTML = '';
+bar.append(followUp ? '💬 Follow-up on ' : '🎓 Quiz on ');
+const where = document.createElement('button');
+where.className = 'link';
+where.dataset.action = 'showChange';
+where.textContent = quiz.file + ':' + quiz.line;
+bar.append(where);
+show('bar', true);
+show('messages', true);
+renderMessages(quiz.messages, switched || quiz.busy);
+show('composer', !quiz.done);
+show('finished', quiz.done);
+show('reveal', !followUp);
+show('skip', !followUp);
+$('submit').textContent = followUp ? 'Send' : 'Submit';
+answer.placeholder = followUp ? FOLLOW_UP_PLACEHOLDER : QUIZ_PLACEHOLDER;
+for (const id of ['submit', 'reveal', 'skip']) $(id).disabled = !quiz.canAnswer;
+if (quiz.canAnswer && document.activeElement !== answer) answer.focus();
+return;
 ```
 
 (`SCRIPT` is a template literal: the code above contains no backticks or `${`, keep it that way.)
@@ -1565,8 +1597,8 @@ Rename the field `private quiz: QuizRun | undefined;` to `private live: LiveConv
 In `state()`, replace `const quiz = this.quiz;` and the `quiz:` and `history:` properties with:
 
 ```ts
-    const live = this.live;
-    const quizId = live instanceof QuizRun ? live.id : undefined;
+const live = this.live;
+const quizId = live instanceof QuizRun ? live.id : undefined;
 ```
 
 ```ts
@@ -1677,11 +1709,11 @@ In `package.json`:
 `comments/commentThread/context`:
 
 ```json
-        {
-          "command": "patchTutor.chat.moveToChat",
-          "group": "inline@2",
-          "when": "commentController == patch-tutor && commentThread =~ / chat started$/"
-        }
+{
+  "command": "patchTutor.chat.moveToChat",
+  "group": "inline@2",
+  "when": "commentController == patch-tutor && commentThread =~ / chat started$/"
+}
 ```
 
 - [ ] **Step 6: Write the integration test and fix the union type in the existing one**
@@ -1689,15 +1721,15 @@ In `package.json`:
 In `test/integration/inlineUi.test.ts`, in 'Move to chat continues the same quiz in the sidebar chat', change
 
 ```ts
-    const quiz = api.chat.current;
-    assert.ok(quiz);
+const quiz = api.chat.current;
+assert.ok(quiz);
 ```
 
 to
 
 ```ts
-    const quiz = api.chat.current;
-    assert.ok(quiz && 'reveal' in quiz, 'expected a quiz');
+const quiz = api.chat.current;
+assert.ok(quiz && 'reveal' in quiz, 'expected a quiz');
 ```
 
 and add `assert.strictEqual(state.quiz?.kind, 'quiz');` after `assert.strictEqual(state.tab, 'quiz');`.
@@ -1705,37 +1737,37 @@ and add `assert.strictEqual(state.quiz?.kind, 'quiz');` after `assert.strictEqua
 Add a new test after it:
 
 ```ts
-  test('Move to chat continues a follow-up in the sidebar chat', async () => {
-    const document = await vscode.workspace.openTextDocument(file);
-    const hunk = (await api.hunks.getHunks(document))?.hunks.find((h) =>
-      h.added.includes(ADDED_LINE),
-    );
-    assert.ok(hunk);
-    await vscode.commands.executeCommand('patchTutor.explainHunk', file, hunk.id);
-    const [thread] = api.threads.threadsFor(file);
-    assert.ok(thread);
-    followUpReply = { answer: 'First answer.' };
-    await vscode.commands.executeCommand('patchTutor.chat.ask', { thread, text: 'First?' });
+test('Move to chat continues a follow-up in the sidebar chat', async () => {
+  const document = await vscode.workspace.openTextDocument(file);
+  const hunk = (await api.hunks.getHunks(document))?.hunks.find((h) =>
+    h.added.includes(ADDED_LINE),
+  );
+  assert.ok(hunk);
+  await vscode.commands.executeCommand('patchTutor.explainHunk', file, hunk.id);
+  const [thread] = api.threads.threadsFor(file);
+  assert.ok(thread);
+  followUpReply = { answer: 'First answer.' };
+  await vscode.commands.executeCommand('patchTutor.chat.ask', { thread, text: 'First?' });
 
-    await vscode.commands.executeCommand('patchTutor.chat.moveToChat', { thread, text: '' });
+  await vscode.commands.executeCommand('patchTutor.chat.moveToChat', { thread, text: '' });
 
-    assert.match(bodies(thread).at(-1) ?? '', /conversation continues in the Patch Tutor chat/);
-    assert.strictEqual(thread.canReply, false);
-    assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
-    const state = api.chat.state();
-    assert.strictEqual(state.quiz?.kind, 'followUp');
-    assert.match(state.quiz?.messages[0]?.html ?? '', /TL;DR/);
-    assert.deepStrictEqual(
-      state.quiz?.messages.map((m) => m.from),
-      ['tutor', 'you', 'tutor'],
-    );
+  assert.match(bodies(thread).at(-1) ?? '', /conversation continues in the Patch Tutor chat/);
+  assert.strictEqual(thread.canReply, false);
+  assert.strictEqual(thread.contextValue, 'patchTutorThread standard');
+  const state = api.chat.state();
+  assert.strictEqual(state.quiz?.kind, 'followUp');
+  assert.match(state.quiz?.messages[0]?.html ?? '', /TL;DR/);
+  assert.deepStrictEqual(
+    state.quiz?.messages.map((m) => m.from),
+    ['tutor', 'you', 'tutor'],
+  );
 
-    followUpReply = { answer: 'Second answer.' };
-    await api.chat.submit('Second?');
-    assert.match(api.chat.state().quiz?.messages.at(-1)?.html ?? '', /Second answer/);
+  followUpReply = { answer: 'Second answer.' };
+  await api.chat.submit('Second?');
+  assert.match(api.chat.state().quiz?.messages.at(-1)?.html ?? '', /Second answer/);
 
-    await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
-  });
+  await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
+});
 ```
 
 - [ ] **Step 7: Run all tests**
@@ -1757,6 +1789,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 5: Follow-up prompt evals
 
 **Files:**
+
 - Create: `test/fixtures/followups/count-query.diff`
 - Create: `test/fixtures/followups/correct-pushback.json`
 - Create: `test/fixtures/followups/wrong-pushback.json`
@@ -1766,6 +1799,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `test/unit/followUpFixtures.test.ts`
 
 **Interfaces:**
+
 - Consumes: `FollowUpService` (Task 1); `fixtureContext` (`src/dev/promptEvals.ts`); `parseUnifiedDiff`; `ExplanationSchema`.
 - Produces: `FollowUpFixtureSchema` and `runFollowUpEvals(extensionUri: vscode.Uri, service: FollowUpService, modelKey: string): Promise<void>`; command `patchTutor.dev.runFollowUpEvals`.
 
@@ -1848,7 +1882,9 @@ const fixtures = readdirSync(dir).filter((name) => name.endsWith('.json'));
 describe('follow-up eval fixtures', () => {
   it('has at least one revision case and one hold-your-ground case', () => {
     const expected = fixtures.map(
-      (name) => FollowUpFixtureSchema.parse(JSON.parse(readFileSync(join(dir, name), 'utf8'))).expectRevised,
+      (name) =>
+        FollowUpFixtureSchema.parse(JSON.parse(readFileSync(join(dir, name), 'utf8')))
+          .expectRevised,
     );
     expect(expected).toContain(true);
     expect(expected).toContain(false);
@@ -1975,11 +2011,11 @@ Expected: PASS (3 tests). If the diff fixture reports 0 hunks, check that contex
 In `src/extension.ts`, add `import { runFollowUpEvals } from './dev/followUpEvals';`, and in `registerDevCommands` add after `evalService`:
 
 ```ts
-  const followUpEvalService = new FollowUpService({
-    createProvider: provider,
-    buildContext: fixtureContext,
-    maxOutputTokens: () => config().get<number>('maxOutputTokens', 1200),
-  });
+const followUpEvalService = new FollowUpService({
+  createProvider: provider,
+  buildContext: fixtureContext,
+  maxOutputTokens: () => config().get<number>('maxOutputTokens', 1200),
+});
 ```
 
 and inside its `context.subscriptions.push(`:
