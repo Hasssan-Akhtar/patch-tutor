@@ -10,7 +10,10 @@ working tree right on the code, then quizzes you on it.
 ## Features
 
 - **Explain this change.** Every changed hunk gets an **Explain** button. The
-  explanation opens on the code, with **Simpler** and **Go deeper** to change the level.
+  explanation opens on the code, with **Simpler** and **Go deeper** to change the level,
+  and **Refresh** to explain it again.
+- **Ask follow-ups.** Reply under an explanation to ask a question, ask for a dry run, or
+  push back when something looks wrong. If you are right, the explanation is corrected.
 - **Quiz me.** A few short questions on the change, graded as you answer. Answer in
   the thread, or move the quiz to the **Quiz chat** in the sidebar.
 - **Progress.** See which concepts you have mastered and which need practice.
