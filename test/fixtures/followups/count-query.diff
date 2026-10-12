@@ -1,0 +1,17 @@
+diff --git a/src/bootstrap.js b/src/bootstrap.js
+index 1111111..2222222 100644
+--- a/src/bootstrap.js
++++ b/src/bootstrap.js
+@@ -1,8 +1,9 @@
+ async function grantPublicRead(strapi, roleId, actions) {
++  const permissions = strapi.db.query('plugin::users-permissions.permission');
+   for (const action of actions) {
+-    const existing = await strapi.db.query('plugin::users-permissions.permission').findMany({ where: { action, role: roleId } });
+-    if (existing.length === 0) {
+-      await strapi.db.query('plugin::users-permissions.permission').create({ data: { action, role: roleId } });
++    const count = await permissions.count({ where: { action, role: roleId } });
++    if (count === 0) {
++      await permissions.create({ data: { action, role: roleId } });
+     }
+   }
+ }

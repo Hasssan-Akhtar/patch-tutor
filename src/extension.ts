@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { ExplanationCache } from './cache/explanationCache';
 import { buildHunkContext } from './context/contextBuilder';
+import { runFollowUpEvals } from './dev/followUpEvals';
 import { fixtureContext, runPromptEvals } from './dev/promptEvals';
 import { parseUnifiedDiff } from './git/diffParser';
 import { getActiveRepository, getStagedDiff } from './git/gitService';
@@ -218,10 +219,18 @@ function registerDevCommands(
     ),
     maxOutputTokens: () => config().get<number>('maxOutputTokens', 1200),
   });
+  const followUpEvalService = new FollowUpService({
+    createProvider: provider,
+    buildContext: fixtureContext,
+    maxOutputTokens: () => config().get<number>('maxOutputTokens', 1200),
+  });
   void vscode.commands.executeCommand('setContext', 'patchTutor.devMode', true);
   context.subscriptions.push(
     vscode.commands.registerCommand('patchTutor.dev.runPromptEvals', () =>
       runPromptEvals(context.extensionUri, evalService, modelKey()),
+    ),
+    vscode.commands.registerCommand('patchTutor.dev.runFollowUpEvals', () =>
+      runFollowUpEvals(context.extensionUri, followUpEvalService, modelKey()),
     ),
   );
 }
