@@ -58,3 +58,10 @@ export const GradeSchema = z.object({
   remember: z.string().min(1),
 });
 export type Grade = z.infer<typeof GradeSchema>;
+
+export const FollowUpSchema = z.object({
+  answer: z.string().min(1),
+  // Some models send null instead of leaving the field out.
+  revised: ExplanationSchema.nullish().transform((value) => value ?? undefined),
+});
+export type FollowUp = z.infer<typeof FollowUpSchema>;
