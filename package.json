@@ -151,6 +151,12 @@
         "icon": "$(comment-discussion)"
       },
       {
+        "command": "patchTutor.chat.moveToChat",
+        "title": "Move to chat",
+        "category": "Patch Tutor",
+        "icon": "$(comment-discussion)"
+      },
+      {
         "command": "patchTutor.setApiKey",
         "title": "Set API key",
         "category": "Patch Tutor"
@@ -338,6 +344,10 @@
         {
           "command": "patchTutor.chat.ask",
           "when": "false"
+        },
+        {
+          "command": "patchTutor.chat.moveToChat",
+          "when": "false"
         }
       ],
       "comments/commentThread/title": [
@@ -365,6 +375,11 @@
           "command": "patchTutor.quiz.moveToChat",
           "when": "commentController == patch-tutor && commentThread =~ /\\bquiz$/",
           "group": "inline@5"
+        },
+        {
+          "command": "patchTutor.chat.moveToChat",
+          "group": "inline@6",
+          "when": "commentController == patch-tutor && commentThread =~ / chat started$/"
         },
         {
           "command": "patchTutor.thread.reportWrong",
@@ -402,6 +417,11 @@
           "command": "patchTutor.chat.ask",
           "group": "inline@1",
           "when": "commentController == patch-tutor && commentThread =~ / chat( started)?$/"
+        },
+        {
+          "command": "patchTutor.chat.moveToChat",
+          "group": "inline@2",
+          "when": "commentController == patch-tutor && commentThread =~ / chat started$/"
         }
       ],
       "view/title": [

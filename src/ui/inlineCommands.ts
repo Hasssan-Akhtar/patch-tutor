@@ -122,5 +122,16 @@ export function registerInlineCommands(
         }
       },
     ),
+    // From the reply box the argument is a CommentReply; from the title bar, the thread.
+    vscode.commands.registerCommand(
+      'patchTutor.chat.moveToChat',
+      async (target: vscode.CommentReply | vscode.CommentThread) => {
+        const thread = 'thread' in target ? target.thread : target;
+        const conversation = followUps.moveToChat(thread);
+        if (conversation) {
+          await chat.adopt(conversation, thread.uri);
+        }
+      },
+    ),
   );
 }
