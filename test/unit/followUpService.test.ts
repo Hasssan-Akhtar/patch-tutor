@@ -144,6 +144,17 @@ describe('FollowUpService', () => {
     expect((await service.ask(request)).revised).toEqual(revised);
   });
 
+  it('keeps a valid answer when only the revision is malformed', async () => {
+    const broken = JSON.stringify({ answer: 'Same number of calls.', revised: {} });
+    const { service, request } = setup([broken, broken]);
+
+    expect(await service.ask(request)).toEqual({
+      context,
+      answer: 'Same number of calls.',
+      structured: false,
+    });
+  });
+
   it('falls back to the raw text when the reply never matches the schema', async () => {
     const { service, request } = setup(['not json', '  Plain answer.  ']);
 

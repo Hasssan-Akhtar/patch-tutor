@@ -65,3 +65,6 @@ export const FollowUpSchema = z.object({
   revised: ExplanationSchema.nullish().transform((value) => value ?? undefined),
 });
 export type FollowUp = z.infer<typeof FollowUpSchema>;
+
+/** Salvages the answer when only the revision was malformed. */
+export const FollowUpAnswerSchema = FollowUpSchema.pick({ answer: true });

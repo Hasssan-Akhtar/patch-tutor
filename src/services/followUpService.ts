@@ -1,7 +1,7 @@
 import type { Hunk } from '../git/hunk';
 import type { LLMProvider } from '../llm/provider';
-import { FollowUpSchema, type Depth, type Explanation } from '../llm/schemas';
-import { completeStructured } from '../llm/structured';
+import { FollowUpAnswerSchema, FollowUpSchema, type Depth, type Explanation } from '../llm/schemas';
+import { completeStructured, parseJson } from '../llm/structured';
 import followUpPrompt from '../prompts/follow-up.md';
 import followUpUserPrompt from '../prompts/follow-up-user.md';
 import { renderTemplate } from '../prompts/render';
@@ -66,7 +66,10 @@ export class FollowUpService {
       FollowUpSchema,
     );
     if (!result.ok) {
-      return { context, answer: result.raw.trim(), structured: false };
+      // A broken revision should not hide a good answer behind raw JSON.
+      const salvaged = parseJson(result.raw, FollowUpAnswerSchema);
+      const answer = salvaged.ok ? salvaged.value.answer : result.raw.trim();
+      return { context, answer, structured: false };
     }
     return {
       context,

@@ -155,6 +155,15 @@ export class ThreadRegistry implements vscode.Disposable {
         this.render(entry);
       }
     });
+    // A chat that moved to the chat view ends there when something replaces it;
+    // the thread then takes follow-ups again.
+    chat.onDidCancel(() => {
+      if (entry.chat === chat && entry.chatInChat && this.isOpen(entry)) {
+        entry.chat = undefined;
+        entry.chatInChat = false;
+        this.render(entry);
+      }
+    });
     this.render(entry);
   }
 
@@ -175,6 +184,10 @@ export class ThreadRegistry implements vscode.Disposable {
     }
     entry.chat = undefined;
     entry.chatInChat = false;
+  }
+
+  private isOpen(entry: ThreadEntry): boolean {
+    return [...this.entries.values()].includes(entry);
   }
 
   private messageComment(message: QuizMessage): vscode.Comment {
