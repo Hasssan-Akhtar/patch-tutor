@@ -130,6 +130,17 @@ describe('ExplanationChat', () => {
     expect(await chat.ask('Q again?')).toBe('answered');
   });
 
+  it('tells cancel listeners once, so a thread can take the conversation back', () => {
+    const { chat } = setup(reply({ answer: 'A.' }));
+    const cancelled = vi.fn();
+    chat.onDidCancel(cancelled);
+
+    chat.cancel();
+    chat.cancel();
+
+    expect(cancelled).toHaveBeenCalledTimes(1);
+  });
+
   it('adds nothing after being cancelled mid-request', async () => {
     let finish: ((text: string) => void) | undefined;
     const { chat } = setup(() => new Promise<string>((resolve) => (finish = resolve)));

@@ -397,6 +397,14 @@ suite('inline UI', () => {
     await api.chat.submit('Second?');
     assert.match(api.chat.state().quiz?.messages.at(-1)?.html ?? '', /Second answer/);
 
+    // When the sidebar moves on to something else, the thread takes follow-ups again.
+    await vscode.commands.executeCommand('patchTutor.quizHunk', file, hunk.id);
+    await vscode.commands.executeCommand('patchTutor.quiz.moveToChat', { thread, text: '' });
+    assert.strictEqual(api.chat.state().quiz?.kind, 'quiz');
+    assert.ok(!bodies(thread).some((b) => /conversation continues/.test(b)), 'pointer removed');
+    assert.strictEqual(thread.canReply, true);
+    assert.strictEqual(thread.contextValue, 'patchTutorThread standard chat');
+
     await vscode.commands.executeCommand('patchTutor.thread.dismiss', thread);
   });
 

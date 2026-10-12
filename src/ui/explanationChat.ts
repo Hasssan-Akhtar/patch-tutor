@@ -16,6 +16,7 @@ const REVISED_NOTE = '✏️ _I corrected the explanation above._';
  */
 export class ExplanationChat {
   private readonly listeners = new Set<() => void>();
+  private readonly cancelListeners = new Set<() => void>();
   private readonly controller = new AbortController();
   private readonly exchanges: Exchange[] = [];
   /** Built on the first question and reused, so later ones skip language-server lookups. */
@@ -102,9 +103,20 @@ export class ExplanationChat {
     return outcome;
   }
 
+  /** Fires once when the chat is cancelled, e.g. when the chat view replaces it. */
+  onDidCancel(listener: () => void): { dispose(): void } {
+    this.cancelListeners.add(listener);
+    return { dispose: () => this.cancelListeners.delete(listener) };
+  }
+
   cancel(): void {
+    if (this.cancelled) {
+      return;
+    }
     this.controller.abort();
     this.listeners.clear();
+    this.cancelListeners.forEach((listener) => listener());
+    this.cancelListeners.clear();
   }
 
   private changed(): void {
